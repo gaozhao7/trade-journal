@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { postJson, useApi } from "@/lib/use-api";
+import { useErrorText } from "@/lib/i18n-error";
 
 interface AccountRow {
   id: string;
@@ -30,10 +32,13 @@ export function AccountPicker({
   onChange: (id: string) => void;
   kind: "import" | "manual";
 }) {
+  const t = useTranslations("Accounts");
+  const errorText = useErrorText();
   const {
     data,
     refresh,
     error: accountError,
+    errorCode: accountErrorCode,
   } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -75,8 +80,8 @@ export function AccountPicker({
       setCreating(false);
       setName("");
       setBalance("0");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Account creation failed.");
+    } catch {
+      setError(t("createFailed"));
     } finally {
       setSaving(false);
     }
@@ -85,11 +90,11 @@ export function AccountPicker({
     <div className="flex min-w-0 flex-wrap items-end gap-2">
       <div className="min-w-0 flex-[1_1_180px]">
         <Label htmlFor={`${fieldId}-account`} className="mb-1 block text-xs text-muted-foreground">
-          Into account
+          {t("intoAccount")}
         </Label>
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger id={`${fieldId}-account`}>
-            <SelectValue placeholder="Choose an account" />
+            <SelectValue placeholder={t("chooseAccount")} />
           </SelectTrigger>
           <SelectContent>
             {accounts.map((account) => (
@@ -110,11 +115,11 @@ export function AccountPicker({
         }}
         disabled={saving}
       >
-        {creating ? "Cancel new account" : "New account"}
+        {creating ? t("cancelNewAccount") : t("newAccount")}
       </Button>
       {accountError && (
         <p role="alert" className="w-full text-sm text-destructive">
-          {accountError}
+          {errorText(accountError, accountErrorCode)}
         </p>
       )}
       {creating && (
@@ -125,10 +130,10 @@ export function AccountPicker({
             if (!saving) void create();
           }}
         >
-          <h3 className="text-sm font-medium">Create account</h3>
+          <h3 className="text-sm font-medium">{t("createAccount")}</h3>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
-              <Label htmlFor={`${fieldId}-name`}>Account name</Label>
+              <Label htmlFor={`${fieldId}-name`}>{t("accountName")}</Label>
               <Input
                 id={`${fieldId}-name`}
                 autoFocus
@@ -137,11 +142,11 @@ export function AccountPicker({
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 disabled={saving}
-                placeholder="Trading test account"
+                placeholder={t("accountNamePlaceholder")}
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${fieldId}-currency`}>Currency</Label>
+              <Label htmlFor={`${fieldId}-currency`}>{t("currency")}</Label>
               <Input
                 id={`${fieldId}-currency`}
                 required
@@ -153,7 +158,7 @@ export function AccountPicker({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`${fieldId}-balance`}>Starting balance</Label>
+              <Label htmlFor={`${fieldId}-balance`}>{t("startingBalance")}</Label>
               <Input
                 id={`${fieldId}-balance`}
                 required
@@ -182,7 +187,7 @@ export function AccountPicker({
               Number(balance) < 0
             }
           >
-            {saving ? "Creating…" : "Create account"}
+            {saving ? t("creating") : t("createAccount")}
           </Button>
         </form>
       )}

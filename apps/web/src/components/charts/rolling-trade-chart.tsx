@@ -11,7 +11,8 @@ import {
   YAxis,
 } from "recharts";
 import type { PerformanceTrends } from "@/lib/performance-trends";
-import { fmtMoney, fmtPercent } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { usePrivacy } from "../privacy";
 import { ChartFrame } from "./chart-frame";
 import { tooltipStyle, useVizTokens } from "./tokens";
@@ -30,10 +31,12 @@ export function RollingTradeChart({
   timeZone: string;
 }) {
   const tokens = useVizTokens();
+  const tc = useTranslations("Charts");
+  const format = useFormat();
   const privacy = usePrivacy();
   const rate = metric === "winRate";
-  const format = (value: number) =>
-    rate ? fmtPercent(value, 0) : privacy ? "••••" : fmtMoney(value, currency);
+  const formatValue = (value: number) =>
+    rate ? format.percent(value, 0) : privacy ? "••••" : format.money(value, currency);
   if (!tokens) return <div className="h-60" />;
   return (
     <ChartFrame height={240}>
@@ -41,7 +44,7 @@ export function RollingTradeChart({
         <LineChart
           data={data}
           margin={{ top: 12, right: 14, bottom: 4, left: 0 }}
-          aria-label={`${rate ? "Win rate" : "Average net P&L"} over 20-trade windows. Exact values and links follow below.`}
+          aria-label={rate ? tc("rolling.ariaWinRate") : tc("rolling.ariaAvgNetPnl")}
         >
           <CartesianGrid stroke={tokens.gridline} vertical={false} />
           <XAxis
@@ -60,7 +63,7 @@ export function RollingTradeChart({
             domain={
               rate ? [0, 1] : [(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)]
             }
-            tickFormatter={format}
+            tickFormatter={formatValue}
             tick={{ fill: tokens.inkMuted, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
@@ -75,10 +78,20 @@ export function RollingTradeChart({
           <Tooltip
             contentStyle={tooltipStyle(tokens)}
             labelFormatter={(label) => {
-              const point = data.find((point) => point.sequence === Number(label));
-              return `Trade #${label}${point ? ` · ${new Intl.DateTimeFormat("en", { timeZone, month: "short", day: "numeric", year: "numeric" }).format(new Date(point.closedAt))}` : ""}`;
+              const index = String(label);
+              const point = data.find((point) => point.sequence === Number(index));
+              return point
+                ? tc("rolling.tradePoint", {
+                    index,
+                    date: format.date(
+                      new Date(point.closedAt),
+                      { month: "short", day: "numeric", year: "numeric" },
+                      timeZone,
+                    ),
+                  })
+                : tc("rolling.tradeIndex", { index });
             }}
-            formatter={(value) => [format(Number(value)), "Last 20 trades"]}
+            formatter={(value) => [formatValue(Number(value)), tc("rolling.seriesName")]}
           />
           <Line
             dataKey={metric}

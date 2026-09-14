@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useVizTokens } from "./tokens";
 
 /**
@@ -16,15 +18,21 @@ export function Gauge({
   size?: number;
 }) {
   const t = useVizTokens();
+  const tc = useTranslations("Charts");
+  const format = useFormat();
   const radius = size / 2 - 6;
   const circumference = Math.PI * radius;
   const ratio = value === null ? 0 : Math.min(Math.max(value, 0), 1);
   if (!t) return <div style={{ width: size, height: size / 2 + 18 }} />;
+  const display = value === null ? "–" : format.percent(ratio);
   return (
     <div
       className="journal-gauge flex min-w-0 flex-col items-center"
       role="img"
-      aria-label={`${label}: ${value === null ? "no data" : `${(ratio * 100).toFixed(1)}%`}`}
+      aria-label={tc("gauge.ariaLabel", {
+        label,
+        value: value === null ? tc("gauge.noData") : display,
+      })}
     >
       <svg width={size} height={size / 2 + 8} viewBox={`0 0 ${size} ${size / 2 + 8}`}>
         <path
@@ -45,9 +53,7 @@ export function Gauge({
         />
       </svg>
       <div className="-mt-5 text-center">
-        <div className="text-lg font-semibold tnum">
-          {value === null ? "–" : `${(ratio * 100).toFixed(1)}%`}
-        </div>
+        <div className="text-lg font-semibold tnum">{display}</div>
       </div>
     </div>
   );

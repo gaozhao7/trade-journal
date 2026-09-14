@@ -83,12 +83,16 @@ export function connectionKey(id: string): string {
     return id === "london-strategic-edge" ? env.values.apiKey! : JSON.stringify(env.values);
   }
   const saved = getSetting(settingKey(id));
-  if (!saved) throw new MarketDataError("Add a market data API key in Settings first.");
+  if (!saved) throw new MarketDataError(
+      "Add a market data API key in Settings first.",
+      "marketDataKeyMissing",
+    );
   try {
     return decryptJson<string>(saved);
   } catch {
     throw new MarketDataError(
       "Could not unlock the saved market data key. Save it again in Settings.",
+      "marketDataKeyUnlockFailed",
     );
   }
 }

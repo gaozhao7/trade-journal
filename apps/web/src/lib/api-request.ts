@@ -1,3 +1,5 @@
+import { ApiError } from "./api-error";
+
 interface PendingRequest {
   controller: AbortController;
   promise: Promise<unknown>;
@@ -14,9 +16,22 @@ export function acquireJson<T>(url: string): { promise: Promise<T>; release: () 
     const next: PendingRequest = { controller, users: 0, promise: Promise.resolve() };
     next.promise = fetch(url, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+        const body = await readBody(response);
+        if (!response.ok) {
+          throw new ApiError(
+            typeof body?.error === "string" ? body.error : "",
+            typeof body?.code === "string" ? body.code : "requestFailed",
+            response.status,
+            { status: response.status },
+          );
+        }
         return body;
+      })
+      .catch((cause: unknown) => {
+        // Keep aborts and API errors intact; only classify transport failures.
+        if (cause instanceof ApiError) throw cause;
+        if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+        throw new ApiError("", "network", null);
       })
       .finally(() => {
         if (pending.get(url) === next) pending.delete(url);
@@ -43,3 +58,16 @@ export function acquireJson<T>(url: string): { promise: Promise<T>; release: () 
     },
   };
 }
+
+interface ErrorBody {
+  error?: string;
+  code?: string;
+}
+
+const readBody = async (response: Response): Promise<ErrorBody & Record<string, unknown>> => {
+  try {
+    return (await response.json()) as ErrorBody & Record<string, unknown>;
+  } catch {
+    return {};
+  }
+};

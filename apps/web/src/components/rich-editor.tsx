@@ -15,6 +15,8 @@ import { fieldClass } from "@/components/filter-fields";
 import { postJson, useApi } from "@/lib/use-api";
 import { formatInlineSelection, remarkRepairSpacedEmphasis } from "@/lib/note-formatting";
 import { tradeLinkLabel, tradeMarkdownLink, type LinkableTrade } from "@/lib/trade-links";
+import { useTranslations } from "next-intl";
+import { useErrorText } from "@/lib/i18n-error";
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="journal-markdown">
@@ -64,7 +66,7 @@ export interface RichEditorHandle {
 export function RichEditor({
   value,
   onChange,
-  placeholder = "Write your review…",
+  placeholder,
   defaultMode,
   mode,
   onModeChange,
@@ -80,6 +82,9 @@ export function RichEditor({
   showModeToggle?: boolean;
   editorRef?: Ref<RichEditorHandle>;
 }) {
+  const t = useTranslations("Journal");
+  const tc = useTranslations("Common");
+  const errorText = useErrorText();
   const ref = useRef<HTMLTextAreaElement>(null),
     [localPreview, setLocalPreview] = useState(() =>
       defaultMode ? defaultMode === "preview" : Boolean(value.trim()),
@@ -136,12 +141,20 @@ export function RichEditor({
       ref.current?.setSelectionRange(next.selectionStart, next.selectionEnd);
     });
   }
+  const templateName = (template: { id: string; name: string }) =>
+    template.id === "pre"
+      ? t("editor.template.preMarket")
+      : template.id === "review"
+        ? t("editor.template.tradeReview")
+        : template.id === "weekly"
+          ? t("editor.template.weekly")
+          : template.name;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1">
         {showModeToggle && (
           <Button type="button" variant="outline" size="sm" onClick={() => setPreview(!preview)}>
-            {preview ? "Edit" : "Preview"}
+            {preview ? tc("edit") : tc("preview")}
           </Button>
         )}
         {!preview && (
@@ -152,7 +165,7 @@ export function RichEditor({
               size="sm"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatInline("**")}
-              aria-label="Bold"
+              aria-label={t("editor.bold")}
             >
               B
             </Button>
@@ -162,7 +175,7 @@ export function RichEditor({
               size="sm"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatInline("*")}
-              aria-label="Italic"
+              aria-label={t("editor.italic")}
             >
               <i>I</i>
             </Button>
@@ -171,7 +184,7 @@ export function RichEditor({
               variant="ghost"
               size="sm"
               onClick={() => insert("\n## ")}
-              aria-label="Heading"
+              aria-label={t("editor.heading")}
             >
               H2
             </Button>
@@ -180,21 +193,21 @@ export function RichEditor({
               variant="ghost"
               size="sm"
               onClick={() => insert("\n- ")}
-              aria-label="Bullet list"
+              aria-label={t("editor.bulletList")}
             >
-              List
+              {t("editor.list")}
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => insert("\n- [ ] ")}
-              aria-label="Checklist"
+              aria-label={t("editor.checklist")}
             >
-              Checklist
+              {t("editor.checklist")}
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setLinkOpen(!linkOpen)}>
-              Link trade
+              {t("editor.linkTrade")}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -202,14 +215,14 @@ export function RichEditor({
                   type="button"
                   variant="outline"
                   size="sm"
-                  aria-label="Insert note template"
+                  aria-label={t("editor.insertTemplateAria")}
                   className="gap-2 rounded-lg"
                 >
-                  Insert template…
+                  {t("editor.insertTemplate")}
                   <ChevronDown className="size-3.5 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" aria-label="Note templates">
+              <DropdownMenuContent align="start" aria-label={t("editor.templatesAria")}>
                 {[...BUILT_INS, ...(data?.templates ?? [])].map((template) => (
                   <DropdownMenuItem
                     key={template.id}
@@ -219,7 +232,7 @@ export function RichEditor({
                       aria-hidden="true"
                       className="size-3.5 shrink-0 text-muted-foreground"
                     />
-                    {template.name}
+                    {templateName(template)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -230,17 +243,22 @@ export function RichEditor({
               variant="ghost"
               disabled={!value}
               onClick={async () => {
-                const name = prompt("Name this note template");
+                const name = window.prompt(t("editor.templateNamePrompt"));
                 if (!name) return;
                 try {
                   await postJson("/api/workspace/templates", { name, content: value });
                   refresh();
                 } catch (e) {
-                  setError(String(e));
+                  setError(
+                    errorText(
+                      e instanceof Error ? e.message : t("editor.saveTemplateFailed"),
+                      null,
+                    ),
+                  );
                 }
               }}
             >
-              Save template
+              {t("editor.saveTemplate")}
             </Button>
           </>
         )}
@@ -248,8 +266,8 @@ export function RichEditor({
       {linkOpen && !preview && (
         <div className="space-y-2 rounded-md border p-2">
           <input
-            aria-label="Find trade by symbol, date or account"
-            placeholder="Search symbol, date or account"
+            aria-label={t("editor.linkAria")}
+            placeholder={t("editor.linkPlaceholder")}
             className={fieldClass}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -257,53 +275,51 @@ export function RichEditor({
           <div className="max-h-40 overflow-y-auto">
             {tradesLoading && (
               <p role="status" className="text-xs text-muted-foreground">
-                Loading trades…
+                {t("editor.loadingTrades")}
               </p>
             )}
             {tradeError && (
               <p role="alert" className="text-xs text-destructive">
-                {tradeError}
+                {errorText(tradeError, null)}
               </p>
             )}
             {!tradesLoading &&
               !tradeError &&
-              trades?.trades.map((t) => (
+              trades?.trades.map((tr) => (
                 <button
-                  key={t.key}
+                  key={tr.key}
                   type="button"
                   className="block w-full rounded p-1 text-left text-xs hover:bg-accent"
                   onClick={() => {
-                    onChange(value + `\n${tradeMarkdownLink(t)}\n`);
+                    onChange(value + `\n${tradeMarkdownLink(tr)}\n`);
                     setLinkOpen(false);
                     setPreview(true);
                   }}
                 >
-                  {tradeLinkLabel(t)}
+                  {tradeLinkLabel(tr)}
                 </button>
               ))}
             {!tradesLoading && !tradeError && trades?.trades.length === 0 && (
-              <p className="text-xs text-muted-foreground">No matching trades.</p>
+              <p className="text-xs text-muted-foreground">{t("editor.noMatches")}</p>
             )}
             {!tradesLoading && !tradeError && trades?.hasMore && (
-              <p className="text-xs text-muted-foreground">
-                Showing the latest 50 matches. Search by date or account to find older trades.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("editor.moreMatches")}</p>
             )}
           </div>
         </div>
       )}
       {preview ? (
         <div className="min-h-40 rounded-md border p-3">
-          <Markdown>{value || "Nothing written yet."}</Markdown>
+          <Markdown>{value || t("editor.emptyPreview")}</Markdown>
         </div>
       ) : (
         <textarea
           ref={ref}
-          aria-label="Review notes"
+          aria-label={t("editor.notesAria")}
           className={`${fieldClass} min-h-48 resize-y font-mono text-[13px]`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t("editor.placeholder")}
         />
       )}
       {error && (

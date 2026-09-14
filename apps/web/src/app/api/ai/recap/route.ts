@@ -16,7 +16,8 @@ export const POST = handler(async (request: Request) => {
   const dayTrades = trades.filter(
     (trade) => trade.closedAt && dayKeyOf(trade.closedAt, timeZone) === date,
   );
-  if (dayTrades.length === 0) return bad("No closed trades on this day to recap");
+  if (dayTrades.length === 0)
+    return bad("No closed trades on this day to recap", 400, "aiNoTradesToRecap");
 
   const metrics = computeMetrics(dayTrades, { timeZone });
   const existingNote = db.select().from(journalDays).where(eq(journalDays.date, date)).get()?.note;

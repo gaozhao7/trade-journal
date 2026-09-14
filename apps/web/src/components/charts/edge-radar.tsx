@@ -12,17 +12,10 @@ import {
   Tooltip,
 } from "recharts";
 import type { EdgeScoreComponents } from "@luxalgo/journal-core";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { tooltipStyle, useVizTokens } from "./tokens";
 import { ChartFrame } from "./chart-frame";
-
-const LABELS: Record<keyof EdgeScoreComponents, string> = {
-  winRate: "Win %",
-  profitFactor: "Profit factor",
-  avgWinLoss: "Avg win/loss",
-  drawdown: "Drawdown",
-  recovery: "Recovery",
-  consistency: "Consistency",
-};
 
 /** The open Edge Score, drawn from its six 0-100 components. */
 export function EdgeRadar({
@@ -32,11 +25,21 @@ export function EdgeRadar({
   components: EdgeScoreComponents;
   height?: number | `${number}%`;
 }) {
-  const t = useVizTokens();
+  const tokens = useVizTokens();
+  const tc = useTranslations("Charts");
+  const format = useFormat();
   const [radius, setRadius] = useState(48);
-  if (!t) return <div style={{ height }} />;
-  const data = (Object.keys(LABELS) as (keyof EdgeScoreComponents)[]).map((key) => ({
-    metric: LABELS[key],
+  if (!tokens) return <div style={{ height }} />;
+  const labels: Record<keyof EdgeScoreComponents, string> = {
+    winRate: tc("edge.winRate"),
+    profitFactor: tc("edge.profitFactor"),
+    avgWinLoss: tc("edge.avgWinLoss"),
+    drawdown: tc("edge.drawdown"),
+    recovery: tc("edge.recovery"),
+    consistency: tc("edge.consistency"),
+  };
+  const data = (Object.keys(labels) as (keyof EdgeScoreComponents)[]).map((key) => ({
+    metric: labels[key],
     value: Math.round(components[key]),
   }));
   return (
@@ -49,19 +52,19 @@ export function EdgeRadar({
         }
       >
         <RadarChart className="journal-edge-radar" data={data} outerRadius={radius}>
-          <PolarGrid stroke={t.gridline} />
+          <PolarGrid stroke={tokens.gridline} />
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-          <PolarAngleAxis dataKey="metric" tick={{ fill: t.inkMuted, fontSize: 11 }} />
+          <PolarAngleAxis dataKey="metric" tick={{ fill: tokens.inkMuted, fontSize: 11 }} />
           <Tooltip
             cursor={false}
             allowEscapeViewBox={{ x: false, y: false }}
-            contentStyle={tooltipStyle(t)}
-            formatter={(value) => [`${value}/100`, "Score"]}
+            contentStyle={tooltipStyle(tokens)}
+            formatter={(value) => [`${format.number(Number(value), 0)}/100`, tc("score")]}
           />
           <Radar
             dataKey="value"
-            stroke={t.brand}
-            fill={t.brand}
+            stroke={tokens.brand}
+            fill={tokens.brand}
             fillOpacity={0.28}
             strokeWidth={2}
             isAnimationActive={false}

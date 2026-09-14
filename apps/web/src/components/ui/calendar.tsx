@@ -1,13 +1,27 @@
 "use client";
 
+import { useMemo } from "react";
 import { DayPicker, type DayPickerProps } from "react-day-picker";
+import { enUS, zhCN } from "react-day-picker/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 export function Calendar(props: DayPickerProps) {
+  const locale = useLocale();
+  const t = useTranslations("Accessibility");
+  const labels = useMemo(
+    () => ({
+      labelNext: () => t("nextMonth"),
+      labelPrevious: () => t("previousMonth"),
+    }),
+    [t],
+  );
   return (
     <DayPicker
       showOutsideDays
       fixedWeeks
+      locale={locale === "zh-CN" ? zhCN : enUS}
+      labels={labels}
       className="journal-date-calendar"
       classNames={{
         months: "relative",

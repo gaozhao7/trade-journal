@@ -18,7 +18,8 @@ import {
   type TradeXAxis,
   type TradeYAxis,
 } from "@/lib/trade-explorer";
-import { fmtMoney } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { usePrivacy } from "../privacy";
 import { ChartFrame } from "./chart-frame";
 import { tooltipStyle, useVizTokens } from "./tokens";
@@ -39,6 +40,9 @@ export function TradeScatter({
   onSelect: (point: PlottedTrade) => void;
 }) {
   const tokens = useVizTokens();
+  const tc = useTranslations("Charts");
+  const tf = useTranslations("Filter");
+  const format = useFormat();
   const privateMode = usePrivacy();
   const groups = useMemo(
     () => [
@@ -48,27 +52,35 @@ export function TradeScatter({
     ],
     [points],
   );
-  const date = useMemo(
-    () => new Intl.DateTimeFormat("en", { timeZone, dateStyle: "medium", timeStyle: "short" }),
-    [timeZone],
-  );
+  const directionLabel = (value: string) =>
+    value === "long"
+      ? tf("options.direction.long")
+      : value === "short"
+        ? tf("options.direction.short")
+        : value;
   const yLabel = (n: number) =>
-    y === "realizedR" ? `${n.toFixed(2)}R` : privateMode ? "••••" : fmtMoney(n, currency);
+    y === "realizedR"
+      ? `${format.number(n, 2)}R`
+      : privateMode
+        ? "••••"
+        : format.money(n, currency);
   const xLabel = (n: number) =>
     x === "entryMinute"
       ? clockLabel(n)
       : x === "mae" || x === "mfe"
         ? privateMode
           ? "••••"
-          : fmtMoney(n, currency)
-        : n.toLocaleString(undefined, { maximumFractionDigits: 1, notation: "compact" });
+          : format.money(n, currency)
+        : format.number(n, 1);
+  const yName = (value: TradeYAxis) =>
+    value === "netPnl" ? tc("scatter.netPnl") : tc("scatter.realizedR");
   if (!tokens) return <div className="h-80" />;
   return (
     <ChartFrame height={340}>
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart
           margin={{ top: 12, right: 24, bottom: 8, left: 0 }}
-          aria-label="Individual trade outcomes. Select a point to inspect; all trades also have links in the table below."
+          aria-label={tc("scatter.ariaLabel")}
         >
           <CartesianGrid stroke={tokens.gridline} />
           <XAxis
@@ -101,25 +113,33 @@ export function TradeScatter({
               return active && point ? (
                 <div style={{ ...tooltipStyle(tokens), maxWidth: 230, overflowWrap: "anywhere" }}>
                   <p className="font-medium">
-                    {point.symbol} · {point.direction}
+                    {point.symbol} · {directionLabel(point.direction)}
                   </p>
-                  <p className="text-xs">Closed {date.format(new Date(point.closedAt))}</p>
+                  <p className="text-xs">
+                    {tc("scatter.closed", {
+                      date: format.date(
+                        new Date(point.closedAt),
+                        { dateStyle: "medium", timeStyle: "short" },
+                        timeZone,
+                      ),
+                    })}
+                  </p>
                   <p>
                     {x === "durationMinutes"
-                      ? `${point.x.toLocaleString(undefined, { maximumFractionDigits: 2 })} minutes`
+                      ? tc("scatter.xDuration", { minutes: format.number(point.x, 2) })
                       : x === "entryMinute"
-                        ? `${clockLabel(point.x)} entry`
-                        : `Estimated ${x.toUpperCase()}: ${xLabel(point.x)}`}
+                        ? tc("scatter.xEntry", { time: clockLabel(point.x) })
+                        : tc("scatter.estimated", {
+                            axis: x.toUpperCase(),
+                            value: xLabel(point.x),
+                          })}
                   </p>
                   <p>
-                    {y === "netPnl"
-                      ? "Net P&L"
-                      : y === "realizedR"
-                        ? "Realized R"
-                        : `Estimated ${y.toUpperCase()}`}
-                    : {yLabel(point.y)}
+                    {y === "netPnl" || y === "realizedR"
+                      ? tc("scatter.value", { label: yName(y), value: yLabel(point.y) })
+                      : tc("scatter.estimated", { axis: y.toUpperCase(), value: yLabel(point.y) })}
                   </p>
-                  <p className="text-xs text-muted-foreground">Select to inspect this trade</p>
+                  <p className="text-xs text-muted-foreground">{tc("scatter.selectHint")}</p>
                 </div>
               ) : null;
             }}
@@ -128,7 +148,7 @@ export function TradeScatter({
             <Scatter
               key={index}
               data={data}
-              name={["Positive net P&L", "Negative net P&L", "Zero net P&L"][index]}
+              name={[tc("scatter.positive"), tc("scatter.negative"), tc("scatter.zero")][index]}
               shape="circle"
               fill={[tokens.profitFill, tokens.loss, tokens.inkMuted][index]}
               fillOpacity={0.7}

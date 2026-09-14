@@ -4,6 +4,8 @@ packages:
 allowBuilds:
   esbuild: true
   better-sqlite3: true
+  '@parcel/watcher': true
+  '@swc/core': true
 ignoredOptionalDependencies:
   - sharp
 minimumReleaseAgeExclude:

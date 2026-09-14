@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { dayKeyOf } from "@luxalgo/journal-core";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { NotebookPen } from "lucide-react";
 import type { DayStats } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
@@ -12,7 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Loading from "@/app/loading";
 import { useApi } from "@/lib/use-api";
-import { fmtPercent } from "@/lib/utils";
+import { useTranslations, useLocale } from "next-intl";
+import { useErrorText } from "@/lib/i18n-error";
+import { useFormat } from "@/lib/use-format";
 
 interface JournalDay {
   date: string;
@@ -22,10 +24,6 @@ interface JournalDay {
 }
 
 const PAGE_SIZE = 50;
-const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
-  timeZone: "UTC",
-});
 
 export default function JournalPage() {
   return (
@@ -36,51 +34,63 @@ export default function JournalPage() {
 }
 
 function Journal() {
+  const t = useTranslations("Journal");
+  const tc = useTranslations("Common");
+  const locale = useLocale();
+  const errorText = useErrorText();
+  const format = useFormat();
   const { query, timeZone } = useFilters();
-  const { data, error, refresh } = useApi<{ days: JournalDay[] }>(`/api/journal?${query}`);
+  const { data, error, errorCode, refresh } = useApi<{ days: JournalDay[] }>(
+    `/api/journal?${query}`,
+  );
   // Reset the visible window immediately when filters change. Keep every day
   // available without mounting years of cards on the first render.
   const [visibleWindow, setVisibleWindow] = useState({ query, limit: PAGE_SIZE });
   const limit = visibleWindow.query === query ? visibleWindow.limit : PAGE_SIZE;
   useEffect(() => setVisibleWindow({ query, limit: PAGE_SIZE }), [query]);
 
+  const weekdayFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }),
+    [locale],
+  );
+
   return (
     <div>
       <FilterBar
-        title="Daily journal"
+        title={t("title")}
         actions={
           <Link
             href={`/journal/${dayKeyOf(new Date().toISOString(), timeZone)}?${query}`}
             className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
           >
-            View my day
+            {t("viewMyDay")}
           </Link>
         }
       />
       <div className="space-y-2 p-4">
         {error ? (
           <div role="alert" className="space-y-2 text-sm text-destructive">
-            <p>{error}</p>
+            <p>{errorText(error, errorCode)}</p>
             <Button variant="outline" onClick={refresh}>
-              Try again
+              {tc("retry")}
             </Button>
           </div>
         ) : !data ? (
-          <div role="status" aria-label="Loading journal">
+          <div role="status" aria-label={t("loadingAria")}>
             <Skeleton className="h-48" />
           </div>
         ) : null}
         {data?.days.length === 0 && (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            No trading days yet — import trades or write your first day note.
-          </p>
+          <p className="py-16 text-center text-sm text-muted-foreground">{t("emptyTitle")}</p>
         )}
         {data?.days.slice(0, limit).map((day) => (
           <Link key={day.date} href={`/journal/${day.date}?${query}`} className="block">
             <Card className="transition-colors hover:border-ring">
               <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
                 <div className="w-full shrink-0 sm:w-28">
-                  <div className="text-sm font-medium">{day.date}</div>
+                  <div className="text-sm font-medium">
+                    {format.date(`${day.date}T00:00:00Z`, undefined, "UTC")}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {weekdayFormatter.format(new Date(`${day.date}T00:00:00Z`))}
                   </div>
@@ -89,26 +99,26 @@ function Journal() {
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                     <Pnl value={day.stats.netPnl} className="w-24 font-semibold" />
                     <span className="text-muted-foreground">
-                      {day.stats.trades} trade{day.stats.trades === 1 ? "" : "s"}
+                      {t("tradeCount", { count: day.stats.trades })}
                     </span>
                     <span className="text-muted-foreground">
-                      {fmtPercent(
-                        day.stats.trades > 0 ? day.stats.wins / day.stats.trades : null,
-                        0,
-                      )}{" "}
-                      win
+                      {day.stats.trades > 0
+                        ? `${format.percent(day.stats.wins / day.stats.trades, 0)} ${t("win")}`
+                        : t("winLoss")}
                     </span>
                     <span className="text-muted-foreground">
-                      {day.stats.wins}W / {day.stats.losses}L
+                      {t("winLossCount", { wins: day.stats.wins, losses: day.stats.losses })}
                     </span>
                   </div>
                 ) : (
-                  <div className="flex-1 text-sm text-muted-foreground">No trades</div>
+                  <div className="flex-1 text-sm text-muted-foreground">
+                    {t("tradeCount", { count: 0 })}
+                  </div>
                 )}
                 {day.hasNote && (
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <NotebookPen className="h-3.5 w-3.5" />
-                    note
+                    {t("hasNote")}
                   </span>
                 )}
               </CardContent>
@@ -118,7 +128,10 @@ function Journal() {
         {data && data.days.length > PAGE_SIZE && (
           <div className="flex flex-wrap items-center justify-between gap-3 py-2 text-xs text-muted-foreground">
             <span role="status">
-              Showing {Math.min(limit, data.days.length)} of {data.days.length} days
+              {t("showingDays", {
+                shown: Math.min(limit, data.days.length),
+                total: data.days.length,
+              })}
             </span>
             {limit < data.days.length && (
               <Button
@@ -126,7 +139,7 @@ function Journal() {
                 size="sm"
                 onClick={() => setVisibleWindow({ query, limit: limit + PAGE_SIZE })}
               >
-                Show older days
+                {t("showOlderDays")}
               </Button>
             )}
           </div>

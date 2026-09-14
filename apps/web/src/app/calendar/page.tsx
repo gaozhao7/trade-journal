@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { dayKeyOf } from "@luxalgo/journal-core";
 import { CalendarPnl } from "@/components/calendar-pnl";
 import { FilterBar, useFilters } from "@/components/filter-bar";
@@ -9,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApi } from "@/lib/use-api";
+import { useErrorText } from "@/lib/i18n-error";
+import { useFormat } from "@/lib/use-format";
 import { CalendarPerformance } from "@/components/calendar-insights";
 import type { CalendarResponse } from "@/lib/calendar-insights";
 import Loading from "@/app/loading";
@@ -22,9 +25,12 @@ export default function CalendarPage() {
 }
 
 function CalendarView() {
+  const t = useTranslations("Calendar");
+  const format = useFormat();
+  const errorText = useErrorText();
   const { query, timeZone } = useFilters();
   const [selection, setMonth] = useState<{ year: number; month: number } | null>(null);
-  const { data, error, refresh } = useApi<CalendarResponse>(
+  const { data, error, errorCode, refresh } = useApi<CalendarResponse>(
     `/api/calendar?${query}${selection ? `&calYear=${selection.year}&calMonth=${selection.month}` : ""}`,
   );
   const today = dayKeyOf(new Date().toISOString(), timeZone);
@@ -39,7 +45,7 @@ function CalendarView() {
   return (
     <div>
       <FilterBar
-        title="Calendar"
+        title={t("title")}
         actions={
           <div className="flex items-center gap-1">
             <Button
@@ -47,12 +53,12 @@ function CalendarView() {
               size="icon"
               className="h-8 w-8"
               onClick={() => shift(-1)}
-              aria-label="Previous month"
+              aria-label={t("prevMonth")}
             >
               <ChevronLeft />
             </Button>
             <span className="w-36 text-center text-sm font-medium">
-              {new Date(Date.UTC(month.year, month.month - 1)).toLocaleString("en-US", {
+              {format.dateTime(new Date(Date.UTC(month.year, month.month - 1)), {
                 month: "long",
                 year: "numeric",
                 timeZone: "UTC",
@@ -63,7 +69,7 @@ function CalendarView() {
               size="icon"
               className="h-8 w-8"
               onClick={() => shift(1)}
-              aria-label="Next month"
+              aria-label={t("nextMonth")}
             >
               <ChevronRight />
             </Button>
@@ -75,9 +81,9 @@ function CalendarView() {
           <CardContent className="pt-4">
             {error ? (
               <div role="alert" className="space-y-3 py-6 text-sm">
-                <p className="text-destructive">{error}</p>
+                <p className="text-destructive">{errorText(error, errorCode)}</p>
                 <Button variant="outline" onClick={refresh}>
-                  Try again
+                  {t("tryAgain")}
                 </Button>
               </div>
             ) : data ? (
@@ -87,7 +93,7 @@ function CalendarView() {
                 monetary={data.currencies.length <= 1}
               />
             ) : (
-              <div role="status" aria-label="Loading calendar">
+              <div role="status" aria-label={t("loadingCalendar")}>
                 <Skeleton className="h-96" />
               </div>
             )}
@@ -103,7 +109,7 @@ function CalendarView() {
         {!data && !error && (
           <div
             role="status"
-            aria-label="Loading performance insights"
+            aria-label={t("loadingInsights")}
             className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
           >
             {[0, 1, 2, 3].map((index) => (

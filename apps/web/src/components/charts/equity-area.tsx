@@ -11,10 +11,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmtMoney, fmtPercent } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { usePrivacy } from "../privacy";
 import { tooltipStyle, useVizTokens } from "./tokens";
 import { ChartFrame } from "./chart-frame";
+
+/** ISO calendar day, e.g. `2026-09-14`. */
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}/;
 
 export interface EquityPointDatum {
   t: string;
@@ -26,7 +30,7 @@ export function EquityArea({
   data,
   height = 240,
   valueFormat = "money",
-  valueLabel = "Cumulative P&L",
+  valueLabel,
   currency = "USD",
   curve = "monotone",
 }: {
@@ -37,14 +41,25 @@ export function EquityArea({
   currency?: string;
   curve?: "monotone" | "stepAfter";
 }) {
-  const t = useVizTokens();
+  const tokens = useVizTokens();
+  const tc = useTranslations("Charts");
+  const format = useFormat();
   const id = useId().replace(/:/g, "");
   const privacy = usePrivacy();
   const privateMode = privacy && valueFormat === "money";
   const formatValue = (value: number) =>
-    valueFormat === "percent" ? fmtPercent(value, 2) : fmtMoney(value, currency);
-  if (!t) return <div style={{ height }} />;
-  const line = t.brand;
+    valueFormat === "percent" ? format.percent(value, 2) : format.money(value, currency);
+  const label = valueLabel ?? tc("cumulativePnl");
+  // `t` is a display label: an ISO day for daily curves, or a bare time
+  // ("09:35") for intraday curves. Only the former can be date-formatted.
+  const dayLabel = (value: string) => {
+    const text = String(value);
+    return ISO_DAY.test(text)
+      ? format.date(`${text.slice(0, 10)}T00:00:00Z`, { month: "short", day: "numeric" }, "UTC")
+      : text;
+  };
+  if (!tokens) return <div style={{ height }} />;
+  const line = tokens.brand;
   const top = Math.max(0, ...data.map((point) => point.cumNetPnl));
   const bottom = Math.min(0, ...data.map((point) => point.cumNetPnl));
   const zero = top === bottom ? 100 : (top / (top - bottom)) * 100;
@@ -59,26 +74,26 @@ export function EquityArea({
           <defs>
             <linearGradient id={`${id}-line`} x1="0" y1="0" x2="0" y2="1">
               <stop offset={`${zero}%`} stopColor={line} />
-              <stop offset={`${zero}%`} stopColor={t.loss} />
+              <stop offset={`${zero}%`} stopColor={tokens.loss} />
             </linearGradient>
             <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={line} stopOpacity={0.3} />
               <stop offset={`${zero}%`} stopColor={line} stopOpacity={0.035} />
-              <stop offset={`${zero}%`} stopColor={t.loss} stopOpacity={0.035} />
-              <stop offset="100%" stopColor={t.loss} stopOpacity={0.3} />
+              <stop offset={`${zero}%`} stopColor={tokens.loss} stopOpacity={0.035} />
+              <stop offset="100%" stopColor={tokens.loss} stopOpacity={0.3} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke={t.gridline} strokeWidth={1} vertical={false} />
+          <CartesianGrid stroke={tokens.gridline} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="t"
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: tokens.inkMuted, fontSize: 11 }}
             tickLine={false}
-            axisLine={{ stroke: t.baseline }}
+            axisLine={{ stroke: tokens.baseline }}
             minTickGap={48}
-            tickFormatter={(value: string) => value.slice(0, 10)}
+            tickFormatter={dayLabel}
           />
           <YAxis
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: tokens.inkMuted, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={70}
@@ -87,17 +102,22 @@ export function EquityArea({
               privateMode ? "••••" : formatValue(value).replace(".00", "")
             }
           />
-          <ReferenceLine y={0} stroke={t.baseline} />
+          <ReferenceLine y={0} stroke={tokens.baseline} />
           <Tooltip
-            contentStyle={tooltipStyle(t)}
-            labelFormatter={(value) => String(value).slice(0, 10)}
-            formatter={(value) => [privateMode ? "Hidden" : formatValue(Number(value)), valueLabel]}
-            cursor={{ stroke: t.inkMuted, strokeDasharray: "3 3" }}
+            contentStyle={tooltipStyle(tokens)}
+            labelFormatter={(value) => {
+              const text = String(value);
+              return ISO_DAY.test(text)
+                ? format.date(`${text.slice(0, 10)}T00:00:00Z`, { dateStyle: "medium" }, "UTC")
+                : text;
+            }}
+            formatter={(value) => [privateMode ? tc("hidden") : formatValue(Number(value)), label]}
+            cursor={{ stroke: tokens.inkMuted, strokeDasharray: "3 3" }}
           />
           <Area
             type={curve}
             dataKey="cumNetPnl"
-            stroke={bottom < 0 ? (top > 0 ? `url(#${id}-line)` : t.loss) : line}
+            stroke={bottom < 0 ? (top > 0 ? `url(#${id}-line)` : tokens.loss) : line}
             strokeWidth={2}
             fill={`url(#${id}-fill)`}
             baseValue={0}
@@ -107,8 +127,8 @@ export function EquityArea({
                 cx={cx}
                 cy={cy}
                 r={4}
-                fill={payload.cumNetPnl < 0 ? t.loss : line}
-                stroke={t.card}
+                fill={payload.cumNetPnl < 0 ? tokens.loss : line}
+                stroke={tokens.card}
                 strokeWidth={2}
               />
             )}

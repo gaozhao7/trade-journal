@@ -1,37 +1,30 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { formatMoney, formatNumber, formatPercent } from "./i18n-format";
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
-const currencyFormatters = new Map<string, Intl.NumberFormat>();
+const DEFAULT_LOCALE = "en-US";
 
-/** Signed money — the sign is ALWAYS in the text; color never carries P&L alone. */
-export const fmtMoney = (value: number, currency = "USD"): string => {
-  let formatter = currencyFormatters.get(currency);
-  if (!formatter) {
-    formatter = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      signDisplay: "exceptZero",
-    });
-    currencyFormatters.set(currency, formatter);
-  }
-  return formatter.format(value);
-};
+/**
+ * Signed money — the sign is ALWAYS in the text; color never carries P&L alone.
+ *
+ * Pass the active locale (from `useFormat()` / `useLocale()`); the default keeps
+ * legacy call sites working until they are migrated.
+ */
+export const fmtMoney = (value: number, currency = "USD", locale = DEFAULT_LOCALE): string =>
+  formatMoney(value, currency, locale);
 
-const numberFormatters = new Map<number, Intl.NumberFormat>();
-export const fmtNumber = (value: number, digits = 2): string => {
-  let formatter = numberFormatters.get(digits);
-  if (!formatter) {
-    formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits });
-    numberFormatters.set(digits, formatter);
-  }
-  return formatter.format(value);
-};
+export const fmtNumber = (value: number, digits = 2, locale = DEFAULT_LOCALE): string =>
+  formatNumber(value, digits, locale);
 
-export const fmtPercent = (value: number | null, digits = 1): string =>
-  value === null ? "–" : `${(value * 100).toFixed(digits)}%`;
+export const fmtPercent = (value: number | null, digits = 1, locale = DEFAULT_LOCALE): string =>
+  value === null ? "–" : formatPercent(value, digits, locale);
 
+/**
+ * @deprecated Durations are localized through `useFormat().duration` so units
+ * follow the active locale. Kept only for legacy call sites.
+ */
 export const fmtDuration = (ms: number | null | undefined): string => {
   if (ms === null || ms === undefined) return "–";
   const minutes = Math.round(ms / 60_000);

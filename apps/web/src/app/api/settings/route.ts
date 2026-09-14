@@ -9,14 +9,17 @@ import {
   aiModelSetting,
   getAiProvider,
   getAiSettings,
+  getSetting,
   setAiKey,
   setSetting,
 } from "@/server/settings";
 import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
 import { isTimeZone } from "@/lib/timezone";
+import { isLocale, localeCookie, type Locale } from "@/i18n/config";
 
 export const GET = handler(() =>
   ok({
+    locale: isLocale(getSetting("locale")) ? getSetting("locale") : "zh-CN",
     timeZone: getTimeZone(),
     importTimeZone: getImportTimeZone(),
     multipliers: getMultipliers(),
@@ -25,10 +28,10 @@ export const GET = handler(() =>
 );
 
 interface SettingsBody {
+  locale?: Locale;
   timeZone?: string;
   importTimeZone?: string;
   multipliers?: Record<string, number>;
-  /** Set to a key string to store (encrypted), or null to clear. Absent = unchanged. */
   anthropicKey?: string | null;
   openaiKey?: string | null;
   aiProvider?: AiProvider;
@@ -37,15 +40,22 @@ interface SettingsBody {
 
 export const PATCH = handler(async (request: Request) => {
   const body = (await request.json()) as SettingsBody;
-  requireValue(body && typeof body === "object" && !Array.isArray(body), "Enter valid settings.");
+  requireValue(
+    body && typeof body === "object" && !Array.isArray(body),
+    "Enter valid settings.",
+    "invalidSettings",
+  );
+  if (body.locale !== undefined)
+    requireValue(isLocale(body.locale), "Choose a supported language.", "unsupportedLocale");
   if (body.aiProvider !== undefined)
-    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.");
+    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.", "invalidAiProvider");
   const provider = body.aiProvider ?? getAiProvider();
   if (body.aiModel !== undefined)
     requireValue(
       typeof body.aiModel === "string" &&
         /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(body.aiModel.trim()),
       "Enter a valid model ID.",
+      "invalidModelId",
     );
   for (const id of AI_PROVIDERS) {
     const key = body[`${id}Key`];
@@ -57,10 +67,12 @@ export const PATCH = handler(async (request: Request) => {
           key.length <= 4096 &&
           !/\s/.test(key.trim())),
       `Enter a valid ${AI_PROVIDER_NAMES[id]} API key.`,
+      "invalidApiKey",
     );
     requireValue(
       !aiKeyEnvironment(id),
       `${AI_PROVIDER_NAMES[id]} uses an environment key. Update or remove it on the server.`,
+      "envApiKeySet",
     );
   }
   for (const key of ["timeZone", "importTimeZone"] as const)
@@ -68,6 +80,7 @@ export const PATCH = handler(async (request: Request) => {
       requireValue(
         isTimeZone(body[key]),
         `Enter a valid IANA ${key === "timeZone" ? "display" : "import"} timezone.`,
+        "invalidTimeZone",
       );
   if (body.multipliers !== undefined)
     requireValue(
@@ -77,9 +90,10 @@ export const PATCH = handler(async (request: Request) => {
           (n) => typeof n === "number" && Number.isFinite(n) && n > 0,
         ),
       "Contract multipliers must be positive numbers.",
+      "invalidMultipliers",
     );
   db.transaction(() => {
-    // A display-only change must not silently alter the legacy import default.
+    if (body.locale !== undefined) setSetting("locale", body.locale);
     if (body.timeZone !== undefined || body.importTimeZone !== undefined)
       setSetting("importTimeZone", body.importTimeZone ?? getImportTimeZone());
     if (body.timeZone !== undefined) setSetting("timeZone", body.timeZone);
@@ -98,5 +112,14 @@ export const PATCH = handler(async (request: Request) => {
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
   });
-  return ok({ saved: true });
+  const response = ok({ saved: true });
+  // The locale is stored server-side and mirrored in a cookie so the very next
+  // request renders in the chosen language without a second round trip.
+  if (body.locale !== undefined)
+    response.cookies.set(localeCookie, body.locale, {
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+      sameSite: "lax",
+    });
+  return response;
 });

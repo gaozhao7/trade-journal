@@ -3,7 +3,8 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { EChartsOption } from "echarts";
-import { fmtMoney, fmtNumber } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { usePrivacy } from "../privacy";
 import { useVizTokens } from "./tokens";
 
@@ -30,6 +31,8 @@ export function TimeHeatmap({
   currency?: string;
 }) {
   const t = useVizTokens();
+  const tc = useTranslations("Charts");
+  const format = useFormat();
   const privateMode = usePrivacy();
   const host = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -94,19 +97,21 @@ export function TimeHeatmap({
         {
           type: "value",
           gridIndex: 0,
-          name: privateMode ? "Net P&L (hidden)" : `Net P&L (${currency})`,
+          name: privateMode
+            ? tc("timeHeatmap.netPnlAxisHidden")
+            : tc("timeHeatmap.netPnlAxis", { currency }),
           nameTextStyle: { color: t.inkMuted, fontSize: 11 },
           splitLine: { lineStyle: { color: t.gridline } },
           axisLabel: {
             color: t.inkMuted,
             fontSize: 11,
-            formatter: (value: number) => (privateMode ? "••••" : fmtNumber(value, 0)),
+            formatter: (value: number) => (privateMode ? "••••" : format.number(value, 0)),
           },
         },
         {
           type: "value",
           gridIndex: 1,
-          name: "Trades",
+          name: tc("timeHeatmap.tradesAxis"),
           nameTextStyle: { color: t.inkMuted, fontSize: 11 },
           splitLine: { show: false },
           axisLabel: { color: t.inkMuted, fontSize: 11 },
@@ -115,9 +120,10 @@ export function TimeHeatmap({
       series: [
         {
           type: "bar",
-          name: "Net P&L",
+          name: tc("timeHeatmap.netPnlSeries"),
           tooltip: {
-            valueFormatter: (value) => (privateMode ? "Hidden" : fmtMoney(Number(value), currency)),
+            valueFormatter: (value) =>
+              privateMode ? tc("hidden") : format.money(Number(value), currency),
           },
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -132,8 +138,8 @@ export function TimeHeatmap({
         },
         {
           type: "line",
-          name: "Trades",
-          tooltip: { valueFormatter: (value) => fmtNumber(Number(value), 0) },
+          name: tc("timeHeatmap.tradesSeries"),
+          tooltip: { valueFormatter: (value) => format.number(Number(value), 0) },
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: hours.map((h) => h.trades),
@@ -143,7 +149,7 @@ export function TimeHeatmap({
         },
       ],
     };
-  }, [hours, t, privateMode, currency]);
+  }, [hours, t, privateMode, currency, tc, format]);
 
   return (
     <div ref={host} style={{ height }}>

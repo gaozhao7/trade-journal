@@ -29,12 +29,13 @@ const bucketBlock = (title: string, buckets: BucketStats[]): string =>
  * own aggregates. The same questions an agent can ask through the MCP tools.
  */
 export const POST = handler(async (request: Request) => {
-  const { question } = (await request.json()) as { question?: string };
+  const { question, locale } = (await request.json()) as { question?: string; locale?: string };
   if (!question) return bad("question is required");
   const timeZone = getTimeZone();
 
   const { trades } = queryTrades();
-  if (trades.length === 0) return bad("The journal is empty — import trades first");
+  if (trades.length === 0)
+    return bad("The journal is empty — import trades first", 400, "aiJournalEmpty");
   const m = computeMetrics(trades, { timeZone });
 
   const context = [
@@ -56,6 +57,8 @@ Cite the numbers you used. Under 200 words.
 ${context}
 
 Question: ${question}`,
+    undefined,
+    locale,
   );
 
   return ok({ answer });

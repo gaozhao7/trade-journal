@@ -9,6 +9,19 @@ export interface ExportFile {
   blob: Blob;
   filename: string;
 }
+export type ExportErrorCode =
+  "fontUnsupported" | "fontLoadFailed" | "imageUnavailable" | "imageFailed";
+/** Export failure carrying a stable, localizable code alongside the English message. */
+export class ExportError extends Error {
+  readonly code: ExportErrorCode;
+  readonly params?: Record<string, string>;
+  constructor(code: ExportErrorCode, message: string, params?: Record<string, string>) {
+    super(message);
+    this.name = "ExportError";
+    this.code = code;
+    this.params = params;
+  }
+}
 const filename = (title: string) =>
   title.replace(/[^a-z0-9_-]/gi, "-").slice(0, 100) || "journal-review";
 export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer | Uint8Array) {
@@ -25,8 +38,10 @@ export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer
     ...new Set([...allText].filter((c) => !/\s/.test(c) && !supported.has(c.codePointAt(0)!))),
   ];
   if (missing.length)
-    throw new Error(
+    throw new ExportError(
+      "fontUnsupported",
       `PDF font does not support these characters: ${missing.slice(0, 8).join(" ")}. Remove them for this export, or export a PNG review.`,
+      { characters: missing.slice(0, 8).join(" ") },
     );
   pdf.setTitle(doc.title);
   pdf.setCreator("Trade Journal");
@@ -80,7 +95,7 @@ export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer
 }
 export async function exportPdf(doc: ReviewDocument) {
   const response = await fetch("/fonts/NotoSans-Regular.ttf");
-  if (!response.ok) throw new Error("Could not load the PDF font.");
+  if (!response.ok) throw new ExportError("fontLoadFailed", "Could not load the PDF font.");
   const bytes = await buildReviewPdf(doc, await response.arrayBuffer());
   return [
     {
@@ -97,7 +112,8 @@ export async function exportPng(doc: ReviewDocument) {
   const t = readVizTokens();
   const canvas = document.createElement("canvas"),
     ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Image export is unavailable in this browser.");
+  if (!ctx)
+    throw new ExportError("imageUnavailable", "Image export is unavailable in this browser.");
   canvas.width = 1200;
   ctx.font = "24px Arial";
   const lines: string[] = [];
@@ -136,7 +152,7 @@ export async function exportPng(doc: ReviewDocument) {
     chunk.forEach((line, j) => ctx.fillText(line, 80, 244 + j * 38));
     const blob = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("Image export failed."))),
+        (b) => (b ? resolve(b) : reject(new ExportError("imageFailed", "Image export failed."))),
         "image/png",
       ),
     );

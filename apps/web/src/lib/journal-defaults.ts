@@ -67,7 +67,21 @@ const FEE_KEYS = ["id", "accountId", "symbol", "amount", "mode"] as const;
 const RISK_KEYS = ["id", "accountId", "symbol", "stop", "target", "mode"] as const;
 export const MAX_DEFAULT_RULES = 100;
 
-export type ParsedDefaults = { defaults: JournalDefaults; error?: undefined } | { error: string };
+/** Stable validation codes; UI maps these to localized copy. `error` is kept for compatibility. */
+export type JournalDefaultsErrorCode =
+  | "defaultsNotObject"
+  | "defaultsUnknownFields"
+  | "invalidBreakeven"
+  | "tooManyDefaults"
+  | "defaultNotObject"
+  | "defaultUnknownFields"
+  | "invalidAccountOrSymbol"
+  | "invalidFee"
+  | "invalidDistance";
+
+export type ParsedDefaults =
+  | { defaults: JournalDefaults; error?: undefined; code?: undefined }
+  | { error: string; code: JournalDefaultsErrorCode };
 
 /**
  * Validate a journal-defaults payload before it is persisted. Only the known
@@ -79,24 +93,31 @@ export function parseJournalDefaults(
   accountExists: (id: string) => boolean,
 ): ParsedDefaults {
   if (!input || typeof input !== "object" || Array.isArray(input))
-    return { error: "Defaults must be an object." };
-  if (!onlyKeys(input, DEFAULT_KEYS)) return { error: "Defaults contain unknown fields." };
+    return { error: "Defaults must be an object.", code: "defaultsNotObject" };
+  if (!onlyKeys(input, DEFAULT_KEYS))
+    return { error: "Defaults contain unknown fields.", code: "defaultsUnknownFields" };
   const b = input as Record<string, unknown>;
   if (
     !isFinite(b.breakeven) ||
     b.breakeven < 0 ||
     !["money", "percent"].includes(b.breakevenMode as string)
   )
-    return { error: "Breakeven must be a nonnegative amount or percentage." };
+    return {
+      error: "Breakeven must be a nonnegative amount or percentage.",
+      code: "invalidBreakeven",
+    };
   for (const key of ["feeRules", "riskRules"] as const) {
     const list = b[key];
     if (!Array.isArray(list) || list.length > MAX_DEFAULT_RULES)
-      return { error: `Use at most ${MAX_DEFAULT_RULES} defaults per type.` };
+      return {
+        error: `Use at most ${MAX_DEFAULT_RULES} defaults per type.`,
+        code: "tooManyDefaults",
+      };
     for (const r of list) {
       if (!r || typeof r !== "object" || Array.isArray(r))
-        return { error: "Each default must be an object." };
+        return { error: "Each default must be an object.", code: "defaultNotObject" };
       if (!onlyKeys(r, key === "feeRules" ? FEE_KEYS : RISK_KEYS))
-        return { error: "A default contains unknown fields." };
+        return { error: "A default contains unknown fields.", code: "defaultUnknownFields" };
       const rule = r as Record<string, unknown>;
       if (
         !isText(rule.id, 100) ||
@@ -104,14 +125,14 @@ export function parseJournalDefaults(
         (rule.accountId && !accountExists(rule.accountId)) ||
         !isText(rule.symbol, 80)
       )
-        return { error: "Invalid default account or symbol." };
+        return { error: "Invalid default account or symbol.", code: "invalidAccountOrSymbol" };
       if (key === "feeRules") {
         if (
           !isFinite(rule.amount) ||
           rule.amount < 0 ||
           !["unit", "execution"].includes(rule.mode as string)
         )
-          return { error: "Fees must be nonnegative." };
+          return { error: "Fees must be nonnegative.", code: "invalidFee" };
       } else if (
         !isFinite(rule.stop) ||
         rule.stop <= 0 ||
@@ -119,7 +140,10 @@ export function parseJournalDefaults(
         rule.target <= 0 ||
         !["price", "percent"].includes(rule.mode as string)
       )
-        return { error: "Stop and target distances must be positive." };
+        return {
+          error: "Stop and target distances must be positive.",
+          code: "invalidDistance",
+        };
     }
   }
   const feeRules = (b.feeRules as Record<string, unknown>[]).map((r) => ({

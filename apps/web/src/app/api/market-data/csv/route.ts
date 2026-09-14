@@ -5,7 +5,7 @@ import { isResolution, RESOLUTIONS, type Resolution } from "@/lib/market-data";
 export const GET = handler(() => ok({ datasets: csvDatasets() }));
 export const POST = handler(async (request: Request) => {
   const reader = request.body?.getReader();
-  requireValue(reader, "Provide a market CSV request.");
+  requireValue(reader, "Provide a market CSV request.", "invalidCsvFile");
   let size = 0;
   const parts: Uint8Array[] = [];
   while (true) {
@@ -14,7 +14,7 @@ export const POST = handler(async (request: Request) => {
     size += value.byteLength;
     if (size > MAX_CSV_BYTES * 2) {
       await reader.cancel();
-      return bad("Use a CSV smaller than 5 MB.", 413);
+      return bad("Use a CSV smaller than 5 MB.", 413, "invalidCsvFile");
     }
     parts.push(value);
   }
@@ -22,34 +22,47 @@ export const POST = handler(async (request: Request) => {
   try {
     body = JSON.parse(Buffer.concat(parts).toString("utf8"));
   } catch {
-    return bad("Invalid CSV request.");
+    return bad("Invalid CSV request.", 400, "invalidCsvFile");
   }
   requireValue(
     body && ["preview", "import", "remove"].includes(body.action),
     "Choose a CSV action.",
+    "invalidCsvFile",
   );
   if (body.action === "remove") {
-    requireValue(typeof body.id === "string" && body.id.length <= 80, "Choose a dataset.");
+    requireValue(
+      typeof body.id === "string" && body.id.length <= 80,
+      "Choose a dataset.",
+      "invalidCsvFile",
+    );
     removeCsvDataset(body.id);
     return ok({ datasets: csvDatasets() });
   }
-  requireValue(typeof body.content === "string", "Choose a CSV file.");
+  requireValue(typeof body.content === "string", "Choose a CSV file.", "invalidCsvFile");
   requireValue(
     typeof body.name === "string" && body.name.trim().length > 0 && body.name.length <= 200,
     "Enter a file name.",
+    "invalidCsvFile",
   );
   requireValue(
     typeof body.symbol === "string" && /^[A-Za-z0-9._:/-]{1,100}$/.test(body.symbol),
     "Enter the exact instrument symbol.",
+    "invalidCsvSymbol",
   );
-  requireValue(isResolution(body.resolution), "Choose a candle resolution.");
+  requireValue(
+    isResolution(body.resolution),
+    "Choose a candle resolution.",
+    "invalidCsvResolution",
+  );
   requireValue(
     typeof body.currency === "string" && /^[A-Z0-9]{2,12}$/.test(body.currency),
     "Enter the quote currency, such as USD or USDT.",
+    "invalidCsvCurrency",
   );
   requireValue(
     ["raw", "split", "adjusted", "midpoint", "bid", "ask"].includes(body.priceBasis),
     "Choose the file's price basis.",
+    "invalidCsvPriceBasis",
   );
   try {
     if (body.action === "import")
@@ -62,6 +75,10 @@ export const POST = handler(async (request: Request) => {
       sample: bars.slice(0, 3),
     });
   } catch (error) {
-    return bad(error instanceof Error ? error.message : "Invalid candle CSV.");
+    return bad(
+      error instanceof Error ? error.message : "Invalid candle CSV.",
+      400,
+      "invalidCsvFile",
+    );
   }
 });

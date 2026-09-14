@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { Paperclip, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { postJson, useApi } from "@/lib/use-api";
+import { useTranslations } from "next-intl";
+import { useErrorText } from "@/lib/i18n-error";
+import { useFormat } from "@/lib/use-format";
 export function Attachments({
   type,
   id,
@@ -11,6 +14,9 @@ export function Attachments({
   type: "trade" | "day" | "note" | "missed" | "prop-account" | "prop-entry";
   id: string;
 }) {
+  const t = useTranslations("Journal");
+  const format = useFormat();
+  const errorText = useErrorText();
   const { data, error, refresh } = useApi<{
     attachments: { id: string; name: string; mime: string; size: number }[];
   }>(`/api/attachments?type=${type}&id=${encodeURIComponent(id)}`);
@@ -28,13 +34,13 @@ export function Attachments({
           onClick={() => input.current?.click()}
         >
           <Paperclip />
-          {busy ? "Uploading…" : "Add attachment"}
+          {busy ? t("attachments.uploading") : t("attachments.add")}
         </Button>
-        <span className="text-xs text-muted-foreground">Images or PDF · up to 8 MB each</span>
+        <span className="text-xs text-muted-foreground">{t("attachments.hint")}</span>
       </div>
       <input
         ref={input}
-        aria-label="Upload attachment"
+        aria-label={t("attachments.uploadAria")}
         type="file"
         accept="image/png,image/jpeg,image/webp,application/pdf"
         className="hidden"
@@ -54,7 +60,9 @@ export function Attachments({
               if (!r.ok) throw new Error(result.error);
             }
           } catch (err) {
-            setFailure(err instanceof Error ? err.message : "Upload failed.");
+            setFailure(
+              errorText(err instanceof Error ? err.message : t("attachments.uploadFailed"), null),
+            );
           } finally {
             setBusy(false);
             if (input.current) input.current.value = "";
@@ -64,7 +72,7 @@ export function Attachments({
       />
       {(failure || error) && (
         <p role="alert" className="text-xs text-destructive">
-          {failure || error}
+          {failure || errorText(error, null)}
         </p>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -88,20 +96,25 @@ export function Attachments({
               </a>
             </HoverHint>
             <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{Math.round(a.size / 1024)} KB</span>
+              <span>{t("attachments.sizeKb", { size: format.number(a.size / 1024, 0) })}</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
-                aria-label={`Remove ${a.name}`}
+                aria-label={t("attachments.removeAria", { name: a.name })}
                 onClick={async () => {
-                  if (!confirm(`Remove ${a.name}?`)) return;
+                  if (!window.confirm(t("attachments.removeConfirm", { name: a.name }))) return;
                   try {
                     await postJson(`/api/attachments/${a.id}`, undefined, "DELETE");
                     refresh();
                   } catch (e) {
-                    setFailure(String(e));
+                    setFailure(
+                      errorText(
+                        e instanceof Error ? e.message : t("attachments.uploadFailed"),
+                        null,
+                      ),
+                    );
                   }
                 }}
               >

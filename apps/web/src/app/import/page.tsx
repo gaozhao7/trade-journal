@@ -24,6 +24,9 @@ import { decodeImportFile } from "@/lib/decode-import";
 import { formatTimestamp, isTimeZone } from "@/lib/timezone";
 import { dayKeyOf } from "@luxalgo/journal-core";
 import { TimeZonePicker } from "@/components/timezone-picker";
+import { useTranslations } from "next-intl";
+import { useErrorText } from "@/lib/i18n-error";
+import { codeFrom } from "@/lib/api-error";
 
 interface BrokerInfo {
   id: string;
@@ -68,23 +71,24 @@ export default function ImportPage() {
 
 function ImportView() {
   const router = useRouter();
+  const t = useTranslations("Import");
   return (
     <div>
-      <FilterBar title="Import trades" />
+      <FilterBar title={t("title")} />
       <div className="mx-auto max-w-3xl p-4">
         <Tabs defaultValue="file">
           <TabsList>
             <TabsTrigger value="file" className="max-sm:px-2 max-sm:text-xs">
               <FileUp className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              File upload
+              {t("tabFile")}
             </TabsTrigger>
             <TabsTrigger value="sync" className="max-sm:px-2 max-sm:text-xs">
               <Landmark className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              Broker sync
+              {t("tabSync")}
             </TabsTrigger>
             <TabsTrigger value="manual" className="max-sm:px-2 max-sm:text-xs">
               <PencilLine className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              Manual
+              {t("tabManual")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="file">
@@ -96,7 +100,7 @@ function ImportView() {
           <TabsContent value="manual">
             <Card>
               <CardHeader>
-                <CardTitle>Add executions manually</CardTitle>
+                <CardTitle>{t("manualTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ManualTradeEntry onSaved={() => router.push("/trades")} />
@@ -111,6 +115,9 @@ function ImportView() {
 
 function FileImport() {
   const router = useRouter();
+  const t = useTranslations("Import");
+  const tCommon = useTranslations("Common");
+  const errorText = useErrorText();
   const [accountId, setAccountId] = useState("");
   const [content, setContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -121,7 +128,11 @@ function FileImport() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
-  const { data: settingsData, error: settingsError } = useApi<{
+  const {
+    data: settingsData,
+    error: settingsError,
+    errorCode: settingsErrorCode,
+  } = useApi<{
     timeZone: string;
     importTimeZone: string;
   }>("/api/settings");
@@ -153,7 +164,10 @@ function FileImport() {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      setError(
+        errorText(cause instanceof Error ? cause.message : null, codeFrom(cause)) ||
+          t("previewFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -174,7 +188,10 @@ function FileImport() {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      setError(
+        errorText(cause instanceof Error ? cause.message : null, codeFrom(cause)) ||
+          t("previewFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -195,7 +212,10 @@ function FileImport() {
       );
       setMappingApplied(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      setError(
+        errorText(cause instanceof Error ? cause.message : null, codeFrom(cause)) ||
+          t("previewFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -222,14 +242,21 @@ function FileImport() {
       });
       const skippedNote =
         result.skipped && result.skipped > 0
-          ? ` ${result.skipped} invalid rows were skipped: ${(result.warnings ?? []).at(-1) ?? ""}`
+          ? t("skippedRowsNote", {
+              skipped: result.skipped,
+              warning: (result.warnings ?? []).at(-1) ?? "",
+            })
           : "";
       alert(
-        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped).${skippedNote}`,
+        t("successImported", { inserted: result.inserted, duplicates: result.duplicates }) +
+          skippedNote,
       );
       router.push("/");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import failed");
+      setError(
+        errorText(cause instanceof Error ? cause.message : null, codeFrom(cause)) ||
+          t("importFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -241,7 +268,7 @@ function FileImport() {
     <div className="space-y-3">
       <Card>
         <CardHeader>
-          <CardTitle>Upload a statement or export</CardTitle>
+          <CardTitle>{t("uploadTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -249,11 +276,11 @@ function FileImport() {
               htmlFor="statement-timezone"
               className="mb-1 block text-xs text-muted-foreground"
             >
-              Statement timezone (IANA)
+              {t("statementTimezoneLabel")} (IANA)
             </Label>
             <TimeZonePicker
               id="statement-timezone"
-              label="Statement timezone"
+              label={t("statementTimezoneLabel")}
               value={timeZone}
               disabled={busy || !settingsData}
               describedBy="statement-timezone-help"
@@ -264,27 +291,27 @@ function FileImport() {
               }}
             />
             <p id="statement-timezone-help" className="mt-1 text-xs text-muted-foreground">
-              Choose the timezone used by your broker's statement. Timestamps with an explicit
-              offset keep that offset. Your journal displays times in {displayTimeZone}.
+              {t("statementTimezoneHelp", { timeZone: displayTimeZone })}
             </p>
             {timeZone && !validTimeZone && (
               <p role="alert" className="mt-1 text-xs text-loss">
-                Enter a valid IANA timezone, such as Europe/Helsinki.
+                {t("invalidTimezone")}
               </p>
             )}
             {settingsError && (
               <p role="alert" className="mt-1 text-xs text-loss">
-                {settingsError}
+                {errorText(settingsError, settingsErrorCode)}
               </p>
             )}
           </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-ring">
             <FileUp className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm">{fileName || "Drop or choose a CSV / HTML statement"}</span>
+            <span className="text-sm">{fileName || t("dropOrChoose")}</span>
             <span className="text-xs text-muted-foreground">
-              Auto-detected:{" "}
-              {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
-              anything else via column mapping.
+              {t("autoDetected", {
+                formats:
+                  formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ") ?? "",
+              })}
             </span>
             <input
               type="file"
@@ -299,7 +326,7 @@ function FileImport() {
           </label>
           {content && !preview && (
             <Button onClick={previewFile} disabled={busy || !validTimeZone} variant="outline">
-              {busy ? "Reading…" : "Preview file"}
+              {busy ? t("reading") : t("previewFile")}
             </Button>
           )}
 
@@ -311,11 +338,11 @@ function FileImport() {
           {preview?.needsSymbol && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="min-w-0 flex-1 text-xs text-muted-foreground">
-                Symbol
+                {t("symbolLabel")}
                 <Input
                   value={symbol}
                   onChange={(event) => setSymbol(event.target.value.toUpperCase())}
-                  placeholder="AAPL, EURUSD…"
+                  placeholder={t("symbolPlaceholder")}
                   className="mt-1"
                 />
               </label>
@@ -325,21 +352,19 @@ function FileImport() {
                 onClick={previewFile}
                 disabled={busy || !symbol.trim()}
               >
-                Preview
+                {tCommon("preview")}
               </Button>
             </div>
           )}
           {preview?.needsMapping && preview.headers && (
             <div className="space-y-2 rounded-md border p-3">
-              <p className="text-sm">
-                Format not recognized — map your columns (nothing is guessed silently):
-              </p>
+              <p className="text-sm">{t("formatNotRecognized")}</p>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {mappingFields.map((field) => (
                   <div key={field}>
-                    <Label className="mb-1 block text-xs capitalize text-muted-foreground">
-                      {field}
-                      {field === "fee" ? " (optional)" : ""}
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      {t(`fields.${field}`)}
+                      {field === "fee" ? ` (${tCommon("optional")})` : ""}
                     </Label>
                     <Select
                       value={mapping[field] ?? "none"}
@@ -348,7 +373,7 @@ function FileImport() {
                       }
                     >
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="column" />
+                        <SelectValue placeholder={t("columnPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">—</SelectItem>
@@ -374,7 +399,7 @@ function FileImport() {
                   !mapping.timestamp
                 }
               >
-                Preview with mapping
+                {t("previewWithMapping")}
               </Button>
             </div>
           )}
@@ -383,8 +408,10 @@ function FileImport() {
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="secondary">{preview.detected}</Badge>
-                <span>{preview.totals.executions} executions</span>
-                <span className="text-muted-foreground">· {preview.totals.symbols} symbols</span>
+                <span>{t("executionsCount", { count: preview.totals.executions })}</span>
+                <span className="text-muted-foreground">
+                  · {t("symbolsCount", { count: preview.totals.symbols })}
+                </span>
                 {preview.totals.from && (
                   <span className="text-muted-foreground">
                     · {dayKeyOf(preview.totals.from, displayTimeZone)} →{" "}
@@ -393,12 +420,15 @@ function FileImport() {
                 )}
                 {preview.totals.skippedRows > 0 && (
                   <span className="text-muted-foreground">
-                    · {preview.totals.skippedRows} rows skipped
+                    · {t("rowsSkipped", { count: preview.totals.skippedRows })}
                   </span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Statement timezone: {preview.timeZone}. Preview times: {displayTimeZone}.
+                {t("statementTimezonePreview", {
+                  timeZone: preview.timeZone,
+                  previewTime: displayTimeZone,
+                })}
               </p>
               {!!preview.executions?.length && (
                 <div className="space-y-1 border-t pt-2 text-xs">
@@ -413,14 +443,11 @@ function FileImport() {
                     </div>
                   ))}
                   {preview.totals.executions > 5 && (
-                    <p className="text-muted-foreground">Showing the first 5 executions.</p>
+                    <p className="text-muted-foreground">{t("showingFirst", { count: 5 })}</p>
                   )}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Correcting a previous import? Remove the affected trades before importing again with
-                a different timezone to avoid duplicates. Back up your data first.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("correctPrevious")}</p>
               {preview.warnings?.map((warning, index) => (
                 <p key={index} className="text-xs text-muted-foreground">
                   ⚠ {warning}
@@ -439,7 +466,7 @@ function FileImport() {
                   !accountId || busy || !!preview.errors?.length || !preview.totals.executions
                 }
               >
-                {busy ? "Importing…" : "Import"}
+                {busy ? tCommon("importing") : t("import")}
               </Button>
             </div>
           )}
@@ -451,6 +478,10 @@ function FileImport() {
 
 function BrokerConnect() {
   const router = useRouter();
+  const t = useTranslations("Import");
+  const tAccounts = useTranslations("Accounts");
+  const tCommon = useTranslations("Common");
+  const errorText = useErrorText();
   const { data } = useApi<{ brokers: BrokerInfo[] }>("/api/brokers");
   const [brokerId, setBrokerId] = useState("");
   const [name, setName] = useState("");
@@ -472,7 +503,10 @@ function BrokerConnect() {
       });
       router.push("/");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connection failed");
+      setError(
+        errorText(cause instanceof Error ? cause.message : null, codeFrom(cause)) ||
+          t("connectionFailed"),
+      );
     } finally {
       setBusy(false);
     }
@@ -481,11 +515,11 @@ function BrokerConnect() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connect a broker (read-only keys, stored encrypted on YOUR machine)</CardTitle>
+        <CardTitle>{t("connectBrokerTitle")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Broker / exchange</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">{t("brokerLabel")}</Label>
           <Select
             value={brokerId}
             onValueChange={(value) => {
@@ -494,7 +528,7 @@ function BrokerConnect() {
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose a broker" />
+              <SelectValue placeholder={t("chooseBroker")} />
             </SelectTrigger>
             <SelectContent>
               {data?.brokers.map((b) => (
@@ -511,7 +545,9 @@ function BrokerConnect() {
               {broker.readOnlySetup}
             </p>
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Account name</Label>
+              <Label className="mb-1 block text-xs text-muted-foreground">
+                {tAccounts("accountName")}
+              </Label>
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -536,7 +572,7 @@ function BrokerConnect() {
               onClick={connect}
               disabled={busy || broker.credentials.some((field) => !credentials[field.key])}
             >
-              {busy ? "Connecting…" : "Connect & sync"}
+              {busy ? tCommon("connecting") : t("connectSync")}
             </Button>
           </>
         )}

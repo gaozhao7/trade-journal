@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,8 @@ import { LuxAlgoMark } from "@/components/luxalgo-mark";
 import { postJson } from "@/lib/use-api";
 
 export default function LoginPage() {
+  const t = useTranslations("Login");
+  const app = useTranslations("Common");
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +23,7 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch {
-      setError("Wrong password");
+      setError(t("wrongPassword"));
     }
   };
 
@@ -31,18 +34,18 @@ export default function LoginPage() {
           <form onSubmit={submit} className="space-y-3">
             <div className="text-center">
               <LuxAlgoMark className="mx-auto mb-2 h-6 w-7" />
-              <h1 className="text-sm font-semibold">Trade Journal</h1>
+              <h1 className="text-sm font-semibold">{app("appName")}</h1>
             </div>
             <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
+              placeholder={t("password")}
               autoFocus
             />
             {error && <p className="text-center text-xs text-loss">{error}</p>}
             <Button type="submit" className="w-full">
-              Unlock
+              {t("unlock")}
             </Button>
           </form>
         </CardContent>

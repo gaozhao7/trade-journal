@@ -19,7 +19,10 @@ import { Attachments } from "@/components/attachments";
 import { ReviewExport } from "@/components/review-export";
 import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
-import { fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
+import { useErrorText } from "@/lib/i18n-error";
+import { codeFrom } from "@/lib/api-error";
 
 interface TradeRowLite {
   key: string;
@@ -51,14 +54,23 @@ export default function JournalDayPage({ params }: { params: Promise<{ date: str
 }
 
 function JournalDay({ date }: { date: string }) {
+  const t = useTranslations("Journal");
+  const tc = useTranslations("Common");
+  const td = useTranslations("Trades");
+  const format = useFormat();
+  const errorText = useErrorText();
   const { query } = useFilters();
-  const { data, error } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
+  const { data, error, errorCode } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
   const [note, setNote] = useState<string | null>(null);
   const noteEditor = useRef<RichEditorHandle>(null);
   const { save, status: saving, flush } = useAutosave(`/api/journal/${date}`, "PUT");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiErrorCode, setAiErrorCode] = useState<string | null>(null);
   const noteValue = note ?? data?.note ?? "";
+  const displayDate = format.date(`${date}T00:00:00Z`, undefined, "UTC");
+  const directionLabel = (direction: string) =>
+    direction === "short" ? td("direction.short") : td("direction.long");
   const scheduleSave = (value: string) => {
     setNote(value);
     save({ note: value });
@@ -72,7 +84,8 @@ function JournalDay({ date }: { date: string }) {
       const merged = noteValue ? `${noteValue}\n\n---\n\n${result.recap}` : result.recap;
       scheduleSave(merged);
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : "AI recap failed");
+      setAiError(error instanceof Error ? error.message : t("aiRecapFailed"));
+      setAiErrorCode(codeFrom(error));
     } finally {
       setAiBusy(false);
     }
@@ -81,39 +94,39 @@ function JournalDay({ date }: { date: string }) {
   const m = data?.metrics;
   return (
     <div>
-      <FilterBar title={`Journal · ${date}`} />
+      <FilterBar title={t("dayTitle", { date: displayDate })} />
       <div className="grid gap-3 p-4 xl:grid-cols-3">
         <div className="min-w-0 space-y-3 xl:col-span-2">
           {m && m.closedTrades > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle>Day stats</CardTitle>
+                <CardTitle>{t("dayStats")}</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 2xl:grid-cols-5">
-                <Stat label="Net P&L">
+                <Stat label={t("stat.netPnl")}>
                   <Pnl value={m.netPnl} className="font-semibold" />
                 </Stat>
-                <Stat label="Trades">{m.closedTrades}</Stat>
-                <Stat label="Winrate">{fmtPercent(m.winRate)}</Stat>
-                <Stat label="Winners">{m.wins}</Stat>
-                <Stat label="Losers">{m.losses}</Stat>
-                <Stat label="Gross">
-                  <MonetaryValue>{fmtMoney(m.grossPnl)}</MonetaryValue>
+                <Stat label={t("stat.trades")}>{m.closedTrades}</Stat>
+                <Stat label={t("stat.winRate")}>{format.percent(m.winRate)}</Stat>
+                <Stat label={t("stat.winners")}>{m.wins}</Stat>
+                <Stat label={t("stat.losers")}>{m.losses}</Stat>
+                <Stat label={t("stat.gross")}>
+                  <MonetaryValue>{format.money(m.grossPnl)}</MonetaryValue>
                 </Stat>
-                <Stat label="Fees">
-                  <MonetaryValue>{fmtMoney(m.fees)}</MonetaryValue>
+                <Stat label={t("stat.fees")}>
+                  <MonetaryValue>{format.money(m.fees)}</MonetaryValue>
                 </Stat>
-                <Stat label="Volume">{fmtNumber(m.totalVolume, 0)}</Stat>
-                <Stat label="Profit factor">
+                <Stat label={t("stat.volume")}>{format.number(m.totalVolume, 0)}</Stat>
+                <Stat label={t("stat.profitFactor")}>
                   {m.profitFactorIsInfinite
                     ? "∞"
                     : m.profitFactor === null
                       ? "–"
-                      : fmtNumber(m.profitFactor)}
+                      : format.number(m.profitFactor)}
                 </Stat>
-                <Stat label="Expectancy">
+                <Stat label={t("stat.expectancy")}>
                   <MonetaryValue>
-                    {m.expectancy === null ? "–" : fmtMoney(m.expectancy)}
+                    {m.expectancy === null ? "–" : format.money(m.expectancy)}
                   </MonetaryValue>
                 </Stat>
               </CardContent>
@@ -122,7 +135,7 @@ function JournalDay({ date }: { date: string }) {
             m && (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  No closed trades this day.
+                  {t("noClosedTrades")}
                 </CardContent>
               </Card>
             )
@@ -131,7 +144,7 @@ function JournalDay({ date }: { date: string }) {
           {data && data.intraday.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Intraday cumulative net P&L</CardTitle>
+                <CardTitle>{t("intradayTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <EquityArea
@@ -148,7 +161,7 @@ function JournalDay({ date }: { date: string }) {
           {data && data.trades.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Trades</CardTitle>
+                <CardTitle>{t("stat.trades")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
                 {data.trades.map((trade) => (
@@ -170,16 +183,18 @@ function JournalDay({ date }: { date: string }) {
                         {trade.status.toUpperCase()}
                       </Badge>
                       <span className="font-medium">{trade.symbol}</span>
-                      <span className="text-xs text-muted-foreground">{trade.direction}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {directionLabel(trade.direction)}
+                      </span>
                     </span>
                     <span className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
                       <span className="tnum text-xs text-muted-foreground">
-                        {fmtNumber(trade.quantity, 4)} @{" "}
-                        <MonetaryValue>{fmtNumber(trade.avgEntry)}</MonetaryValue>
+                        {format.number(trade.quantity, 4)} @{" "}
+                        <MonetaryValue>{format.number(trade.avgEntry)}</MonetaryValue>
                         {trade.avgExit !== null && (
                           <>
                             {" "}
-                            → <MonetaryValue>{fmtNumber(trade.avgExit)}</MonetaryValue>
+                            → <MonetaryValue>{format.number(trade.avgExit)}</MonetaryValue>
                           </>
                         )}
                       </span>
@@ -195,7 +210,7 @@ function JournalDay({ date }: { date: string }) {
 
         <Card className="h-fit">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-            <CardTitle>Day note</CardTitle>
+            <CardTitle>{t("dayNote")}</CardTitle>
             <div className="flex items-center gap-2">
               <VoiceNote
                 onPrepare={() => noteEditor.current?.focus()}
@@ -212,7 +227,7 @@ function JournalDay({ date }: { date: string }) {
                 disabled={aiBusy || !data}
               >
                 <Sparkles />
-                {aiBusy ? "Writing…" : "AI recap"}
+                {aiBusy ? t("writing") : t("aiRecap")}
               </Button>
             </div>
           </CardHeader>
@@ -221,8 +236,12 @@ function JournalDay({ date }: { date: string }) {
               <div className="mb-4">
                 <AiNotice
                   error={aiError}
+                  code={aiErrorCode}
                   onRetry={() => void generateRecap()}
-                  onDismiss={() => setAiError(null)}
+                  onDismiss={() => {
+                    setAiError(null);
+                    setAiErrorCode(null);
+                  }}
                 />
               </div>
             )}
@@ -230,7 +249,7 @@ function JournalDay({ date }: { date: string }) {
               <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
             ) : error ? (
               <p role="alert" className="text-sm text-destructive">
-                {error}
+                {errorText(error, errorCode)}
               </p>
             ) : (
               <Skeleton className="h-48" />
@@ -238,16 +257,19 @@ function JournalDay({ date }: { date: string }) {
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span role="status">{saving}</span>
               <Button variant="ghost" size="sm" onClick={() => void flush()}>
-                Save now
+                {tc("saveNow")}
               </Button>
             </div>
             <ReviewExport
               containsFinancialData
               document={{
-                title: `Daily review · ${date}`,
-                subtitle: query ? `Filters: ${query}` : "All accounts",
+                title: t("exportDayTitle", { date: displayDate }),
+                subtitle: query ? t("exportFilters", { query }) : t("exportAllAccounts"),
                 lines: [
-                  `Closed trades: ${m?.closedTrades ?? 0} | Net P&L: ${m?.netPnl.toFixed(2) ?? "0.00"}`,
+                  t("exportSummary", {
+                    closed: m?.closedTrades ?? 0,
+                    pnl: format.number(m?.netPnl ?? 0),
+                  }),
                   "",
                   noteValue,
                 ],

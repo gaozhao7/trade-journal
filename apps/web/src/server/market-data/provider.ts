@@ -18,4 +18,13 @@ export interface MarketDataProvider {
   test(apiKey: string): Promise<void>;
 }
 
-export class MarketDataError extends Error {}
+/** Market-data failures carry a stable code so the UI can localize them. */
+export class MarketDataError extends Error {
+  readonly code: string;
+
+  constructor(message: string, code = "marketDataInvalidInput") {
+    super(message);
+    this.name = "MarketDataError";
+    this.code = code;
+  }
+}
