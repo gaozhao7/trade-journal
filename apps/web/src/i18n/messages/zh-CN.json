@@ -103,7 +103,11 @@
     "switchToDark": "切换到深色模式",
     "lightMode": "浅色模式",
     "darkMode": "深色模式",
-    "saveError": "外观已切换，但浏览器无法为你保存下次生效的偏好。"
+    "saveError": "外观已切换，但浏览器无法为你保存下次生效的偏好。",
+    "names": {
+      "dark": "深色",
+      "light": "浅色"
+    }
   },
   "Privacy": {
     "label": "隐私",

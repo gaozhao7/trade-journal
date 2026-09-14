@@ -5,6 +5,7 @@ import { Download, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ExportError, exportPdf, exportPng, type ReviewDocument } from "@/lib/export-review";
+import { PRINT_THEME, printCss } from "@/lib/export-theme";
 import { useFormat } from "@/lib/use-format";
 import { usePrivacy } from "./privacy";
 interface Preview {
@@ -117,10 +118,22 @@ export function ReviewExport({
                 </a>
               </Button>
               {f.type === "application/pdf" ? (
-                <div className="rounded border bg-white p-6 text-slate-800">
-                  <p className="mb-4 text-xs text-slate-500">{t("reviewTextHint")}</p>
+                // The PDF is a light document regardless of the screen theme, so the
+                // preview paints the print theme instead of the active one.
+                <div
+                  className="rounded border p-6"
+                  style={{
+                    background: printCss(PRINT_THEME.paper),
+                    color: printCss(PRINT_THEME.foreground),
+                  }}
+                >
+                  <p className="mb-4 text-xs" style={{ color: printCss(PRINT_THEME.muted) }}>
+                    {t("reviewTextHint")}
+                  </p>
                   <h3 className="mb-2 text-xl font-semibold">{previewDocument?.title}</h3>
-                  <p className="mb-6 text-xs text-slate-500">{previewDocument?.subtitle}</p>
+                  <p className="mb-6 text-xs" style={{ color: printCss(PRINT_THEME.muted) }}>
+                    {previewDocument?.subtitle}
+                  </p>
                   <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                     {previewDocument?.lines.join("\n")}
                   </div>

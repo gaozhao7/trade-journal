@@ -3,8 +3,11 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useFormat } from "@/lib/use-format";
+import { currentThemeId, THEME_CHANGE_EVENT } from "@/lib/theme";
+import { getTheme } from "@/lib/theme-registry";
 import { usePrivacy } from "./privacy";
 import { EquityArea } from "./charts/equity-area";
+import { readVizTokens } from "./charts/tokens";
 
 export interface ChartExecution {
   side: "buy" | "sell";
@@ -102,7 +105,6 @@ function PriceChart({
       const { Vela, registerNativeIndicator, unregisterNativeIndicator } = vela;
       if (disposed || !hostRef.current) return;
 
-      let dark = document.documentElement.classList.contains("dark");
       const sorted = [...executions].sort(
         (a, b) => Date.parse(a.executedAt) - Date.parse(b.executedAt),
       );
@@ -112,10 +114,6 @@ function PriceChart({
         : Date.parse(sorted.at(-1)!.executedAt);
       const durationMs = Math.max(closeMs - openMs, 60_000);
       const pad = Math.max(durationMs * 0.35, 15 * 60_000);
-
-      let profitColor = dark ? "#0ca30c" : "#006300";
-      const lossColor = "#d03b3b";
-      let entryColor = trade.direction === "long" ? profitColor : lossColor;
 
       // Engine-free trade painting: a per-mount native indicator that emits
       // arrow labels for each fill plus an entry→exit line with the P&L.
@@ -130,6 +128,9 @@ function PriceChart({
         defaultInputs: () => ({}),
         create: () => ({
           start(ctx) {
+            // Resolved on every mount of the indicator, so a theme change repaints
+            // the fills from the new tokens without recreating the price chart.
+            const tokens = readVizTokens();
             const labels = sorted.map((execution, index) => ({
               id: `fill-${index}`,
               paneId: "price",
@@ -140,13 +141,14 @@ function PriceChart({
               text: `${execution.side === "buy" ? `▲ ${t("side.buy")}` : `▼ ${t("side.sell")}`} ${execution.quantity}`,
               style: (execution.side === "buy" ? "triangleup" : "triangledown") as
                 "triangleup" | "triangledown",
-              color: execution.side === "buy" ? profitColor : lossColor,
-              textColor: dark ? "#f4f4f2" : "#0b0b0b",
+              color: execution.side === "buy" ? tokens.velaBuy : tokens.velaSell,
+              textColor: tokens.velaLabelText,
               size: "small" as const,
               textAlign: "center" as const,
               fontFamily: "default" as const,
               overlay: true,
             }));
+            const pnlColor = trade.netPnl >= 0 ? tokens.profit : tokens.loss;
             const pnlLabel =
               trade.avgExit !== null && trade.avgExit !== undefined
                 ? [
@@ -159,8 +161,9 @@ function PriceChart({
                       yloc: "price" as const,
                       text: format.money(trade.netPnl),
                       style: "label_left" as const,
-                      color: trade.netPnl >= 0 ? profitColor : lossColor,
-                      textColor: "#ffffff",
+                      color: pnlColor,
+                      textColor:
+                        trade.netPnl >= 0 ? tokens.velaProfitLabelText : tokens.velaLossLabelText,
                       size: "normal" as const,
                       textAlign: "left" as const,
                       fontFamily: "default" as const,
@@ -181,7 +184,7 @@ function PriceChart({
                         x2: closeMs,
                         y2: trade.avgExit,
                         extend: "none" as const,
-                        color: trade.netPnl >= 0 ? profitColor : lossColor,
+                        color: pnlColor,
                         invisible: false,
                         width: 2,
                         style: "dashed" as const,
@@ -208,7 +211,8 @@ function PriceChart({
       const chart = new Vela(host, {
         symbol: trade.symbol,
         timeframe: timeframeFor(durationMs),
-        theme: dark ? "dark" : "light",
+        // Vela only understands two bases, so the registry's colorScheme is mapped onto it.
+        theme: getTheme(currentThemeId()).colorScheme,
         height,
         live: false,
         volume: false,
@@ -225,23 +229,19 @@ function PriceChart({
         })),
       });
       let indicator = chart.addNativeIndicator(type);
-      const themeObserver = new MutationObserver(() => {
-        const nextDark = document.documentElement.classList.contains("dark");
-        if (dark === nextDark) return;
-        dark = nextDark;
-        profitColor = dark ? "#0ca30c" : "#006300";
-        entryColor = trade.direction === "long" ? profitColor : lossColor;
-        chart.setTheme(dark ? "dark" : "light");
-        // Repaint annotations without recreating the price chart or fetching candles.
+      const syncTheme = () => {
+        // The listener is added and removed in the same synchronous turn as the
+        // chart, so nothing can fire after unmount today. The guard keeps that
+        // true if anyone ever introduces an await between them.
+        if (disposed) return;
+        chart.setTheme(getTheme(currentThemeId()).colorScheme);
+        // Token-driven annotation colours are rebuilt without refetching candles.
         indicator.remove();
         indicator = chart.addNativeIndicator(type);
-      });
-      themeObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
+      };
+      window.addEventListener(THEME_CHANGE_EVENT, syncTheme);
       cleanup = () => {
-        themeObserver.disconnect();
+        window.removeEventListener(THEME_CHANGE_EVENT, syncTheme);
         chart.destroy();
         unregisterNativeIndicator(type);
       };

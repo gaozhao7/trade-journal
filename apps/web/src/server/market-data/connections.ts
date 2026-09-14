@@ -83,7 +83,8 @@ export function connectionKey(id: string): string {
     return id === "london-strategic-edge" ? env.values.apiKey! : JSON.stringify(env.values);
   }
   const saved = getSetting(settingKey(id));
-  if (!saved) throw new MarketDataError(
+  if (!saved)
+    throw new MarketDataError(
       "Add a market data API key in Settings first.",
       "marketDataKeyMissing",
     );

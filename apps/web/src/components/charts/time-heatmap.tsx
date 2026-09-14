@@ -70,8 +70,7 @@ export function TimeHeatmap({
         borderColor: t.border,
         borderWidth: 1,
         padding: [12, 14],
-        extraCssText:
-          "border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.1);line-height:1.6;",
+        extraCssText: `border-radius:12px;box-shadow:${t.tooltipShadow};line-height:1.6;`,
         textStyle: { color: t.foreground, fontSize: 13 },
       },
       axisPointer: { link: [{ xAxisIndex: "all" }] },

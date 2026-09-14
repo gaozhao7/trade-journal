@@ -211,7 +211,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Button>
           </DialogPrimitive.Trigger>
           <DialogPrimitive.Portal>
-            <DialogPrimitive.Overlay className="journal-nav-overlay fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
+            <DialogPrimitive.Overlay className="journal-nav-overlay fixed inset-0 z-40 bg-[var(--overlay-backdrop)] backdrop-blur-sm" />
             <DialogPrimitive.Content
               className="journal-nav-drawer fixed inset-y-0 left-0 z-50 flex w-[min(288px,calc(100vw-40px))] flex-col border-r bg-card shadow-2xl"
               aria-describedby={undefined}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { DEFAULT_THEME_ID } from "@/lib/theme";
+import { getTheme, seriesCssVar } from "@/lib/theme-registry";
 
 export interface VizTokens {
   surface: string;
@@ -15,34 +17,64 @@ export interface VizTokens {
   foreground: string;
   card: string;
   border: string;
+  /** Resolved `--shadow-tooltip`: canvas/SVG tooltips get the same elevation as DOM ones. */
+  tooltipShadow: string;
+  /** Vela annotations, which only accept literal colours. */
+  velaBuy: string;
+  velaSell: string;
+  velaLabelText: string;
+  velaProfitLabelText: string;
+  velaLossLabelText: string;
 }
+
+/**
+ * Fallbacks come from the registry's default theme, so a browser that cannot
+ * resolve custom properties degrades to the product default instead of to a
+ * stale copy of yesterday's palette.
+ */
+const defaults = getTheme(DEFAULT_THEME_ID).tokens;
+const defaultShadows = getTheme(DEFAULT_THEME_ID).shadows;
 
 /** Resolve the design tokens from the document so canvas painters match the theme. */
 export const readVizTokens = (): VizTokens => {
   const style = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
   return {
-    surface: v("--viz-surface", "#1a1a19"),
-    inkMuted: v("--ink-muted", "#898781"),
-    gridline: v("--gridline", "#2c2c2a"),
-    baseline: v("--baseline", "#30303a"),
-    brand: v("--brand", "#1197e2"),
-    profit: v("--profit", "#0ca30c"),
-    profitFill: v("--profit-fill", "#0ca30c"),
-    loss: v("--loss", "#d03b3b"),
-    series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => v(`--series-${i}`, "#3987e5")),
-    foreground: v("--foreground", "#f4f4f2"),
-    card: v("--card", "#1a1a19"),
-    border: v("--border", "#2c2c2a"),
+    surface: v("--viz-surface", defaults.vizSurface),
+    inkMuted: v("--ink-muted", defaults.inkMuted),
+    gridline: v("--gridline", defaults.gridline),
+    baseline: v("--baseline", defaults.baseline),
+    brand: v("--brand", defaults.brand),
+    profit: v("--profit", defaults.profit),
+    profitFill: v("--profit-fill", defaults.profitFill),
+    loss: v("--loss", defaults.loss),
+    series: defaults.series.map((fallback, index) => v(seriesCssVar(index + 1), fallback)),
+    foreground: v("--foreground", defaults.foreground),
+    card: v("--card", defaults.card),
+    border: v("--border", defaults.border),
+    tooltipShadow: v("--shadow-tooltip", defaultShadows.tooltip),
+    velaBuy: v("--vela-buy", defaults.velaBuy),
+    velaSell: v("--vela-sell", defaults.velaSell),
+    velaLabelText: v("--vela-label-text", defaults.velaLabelText),
+    velaProfitLabelText: v("--vela-profit-label-text", defaults.velaProfitLabelText),
+    velaLossLabelText: v("--vela-loss-label-text", defaults.velaLossLabelText),
   };
 };
 
 /**
  * Resolved viz colors. SVG charts could use `var(--x)` strings, but ECharts
  * paints to canvas, which can't — so every chart resolves tokens through this
- * hook and re-resolves when the theme class flips.
+ * hook and re-resolves when the theme changes.
+ *
+ * `data-theme` is the signal; `class` and `style` stay in the filter so an
+ * adapter that only flipped `.dark` (or only `color-scheme`) still repaints.
+ * Redundant notifications are suppressed by the value comparison below, and the
+ * provider's `journal-theme-change` event handles consumers that repaint
+ * imperatively instead of re-rendering.
  */
 let tokens: VizTokens | null = null;
+/** Serialized form of `tokens`, so a redraw compares two strings, not two objects. */
+let snapshot = "";
 const listeners = new Set<() => void>();
 let observer: MutationObserver | null = null;
 const getTokens = () => tokens;
@@ -52,12 +84,22 @@ function subscribeTokens(listener: () => void) {
   if (!observer) {
     const read = () => {
       const next = readVizTokens();
-      if (JSON.stringify(next) === JSON.stringify(tokens)) return;
+      // `readVizTokens` builds its object in a fixed key order and allocates a new
+      // `series` array every time, so a shallow field compare would report a change
+      // on every read. Serializing normalizes the array; caching the previous string
+      // keeps this to one stringify per mutation, and the string is what makes a
+      // future "which token changed?" investigation a simple diff.
+      const nextSnapshot = JSON.stringify(next);
+      if (nextSnapshot === snapshot) return;
+      snapshot = nextSnapshot;
       tokens = next;
       listeners.forEach((notify) => notify());
     };
     observer = new MutationObserver(read);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme", "style"],
+    });
     read();
   }
   return () => {
@@ -66,6 +108,7 @@ function subscribeTokens(listener: () => void) {
       observer?.disconnect();
       observer = null;
       tokens = null;
+      snapshot = "";
     }
   };
 }
@@ -81,5 +124,5 @@ export const tooltipStyle = (t: VizTokens): React.CSSProperties => ({
   fontSize: 13,
   lineHeight: 1.6,
   color: t.foreground,
-  boxShadow: "0 12px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
+  boxShadow: t.tooltipShadow,
 });

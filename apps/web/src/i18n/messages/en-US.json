@@ -103,7 +103,11 @@
     "switchToDark": "Switch to dark mode",
     "lightMode": "Light mode",
     "darkMode": "Dark mode",
-    "saveError": "Appearance changed, but your browser could not save it for next time."
+    "saveError": "Appearance changed, but your browser could not save it for next time.",
+    "names": {
+      "dark": "Dark",
+      "light": "Light"
+    }
   },
   "Privacy": {
     "label": "Privacy",

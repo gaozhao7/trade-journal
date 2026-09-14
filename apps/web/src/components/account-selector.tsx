@@ -71,7 +71,10 @@ export function AccountSelector() {
             {loadingDemo ? t("loadingDemo") : label}
           </span>
         </SelectTrigger>
-        <SelectContent className="rounded-2xl border-white/10 p-1 shadow-2xl" align="end">
+        <SelectContent
+          className="rounded-2xl border-border p-1 shadow-[var(--shadow-menu)]"
+          align="end"
+        >
           <SelectItem value="all" className="rounded-lg text-xs">
             {t("allAccounts")}
           </SelectItem>

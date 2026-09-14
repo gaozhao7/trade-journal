@@ -8,7 +8,11 @@ export const PATCH = handler(async (request: Request) => {
   requireValue(isLocale(body?.locale), "Choose a supported language.", "unsupportedLocale");
   setSetting("locale", body.locale);
   const response = NextResponse.json({ locale: body.locale });
-  response.cookies.set(localeCookie, body.locale, { maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" });
+  response.cookies.set(localeCookie, body.locale, {
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+    sameSite: "lax",
+  });
   return response;
 });
 

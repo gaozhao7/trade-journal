@@ -157,12 +157,14 @@ return <span>{t("tradeCount", { count: trades.length })}</span>;
 }
 ```
 
+<!-- prettier-ignore -->
 ```tsx
  t("groupSummary", { trades: group.trades, winRate: percent(group.winRate) })
 ```
 
 不要这样写：
 
+<!-- prettier-ignore -->
 ```tsx
 `${count} trades · Win rate ${percent(rate)}`
 ```
@@ -179,6 +181,7 @@ return <span>{t("tradeCount", { count: trades.length })}</span>;
 }
 ```
 
+<!-- prettier-ignore -->
 ```tsx
 const t = useTranslations("MarketData");
 return t.rich("settingsLink", {
@@ -254,6 +257,7 @@ return { code: "missingSymbol" as const };
 
 ### 6.1 JSX 文本
 
+<!-- prettier-ignore -->
 ```tsx
 // 错误
 <CardTitle>Market data</CardTitle>
@@ -288,6 +292,7 @@ const t = useTranslations("MarketData");
 
 ### 6.3 状态和异步文案
 
+<!-- prettier-ignore -->
 ```tsx
 // 错误
 {busy ? "Importing…" : "Import"}
@@ -328,6 +333,7 @@ const t = useTranslations("MarketData");
 
 前端：
 
+<!-- prettier-ignore -->
 ```tsx
 const message = isApiError(error)
   ? t(`errors.${error.code}`, error.params)
@@ -340,12 +346,14 @@ const message = isApiError(error)
 
 禁止直接使用英文原文：
 
+<!-- prettier-ignore -->
 ```tsx
 if (confirm("Delete this note?")) {}
 ```
 
 优先使用项目已有 Dialog 组件，并将标题、描述、取消、确认全部翻译。如果必须使用 `confirm`，也要使用翻译后的字符串：
 
+<!-- prettier-ignore -->
 ```tsx
 if (window.confirm(t("deleteConfirm"))) {}
 ```
@@ -356,6 +364,7 @@ if (window.confirm(t("deleteConfirm"))) {}
 
 ### 7.1 禁止的写法
 
+<!-- prettier-ignore -->
 ```tsx
 value.toFixed(2)
 new Date(value).toLocaleString()
@@ -421,6 +430,7 @@ const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 图表 series 的内部 ID 不翻译：
 
+<!-- prettier-ignore -->
 ```ts
 const series = {
   id: "netPnl",
@@ -430,6 +440,7 @@ const series = {
 
 不要把翻译后的名称作为业务判断条件：
 
+<!-- prettier-ignore -->
 ```tsx
 // 错误
 if (series.name === "Net P&L") {}
@@ -461,27 +472,27 @@ const directionLabels = {
 
 建议统一术语：
 
-| English | zh-CN 建议 |
-|---|---|
-| Execution | 成交记录 |
-| Fill | 成交 |
-| Trade | 交易 |
-| Round trip | 完整交易周期 |
-| Market Replay | 市场回放 |
-| Replay speed | 回放速度 |
-| Step forward | 前进一根 |
-| Slippage | 滑点 |
-| Drawdown | 回撤 |
-| Expectancy | 期望值 |
-| Profit factor | 盈亏因子 |
-| Playbook | 策略模板 |
-| Adherence | 执行一致性 |
-| Missed trade | 错过的交易 |
-| Prop firm | 交易考核机构 |
-| Market data | 市场数据 |
-| Contract multiplier | 合约乘数 |
-| MAE | 最大不利波动 |
-| MFE | 最大有利波动 |
+| English             | zh-CN 建议   |
+| ------------------- | ------------ |
+| Execution           | 成交记录     |
+| Fill                | 成交         |
+| Trade               | 交易         |
+| Round trip          | 完整交易周期 |
+| Market Replay       | 市场回放     |
+| Replay speed        | 回放速度     |
+| Step forward        | 前进一根     |
+| Slippage            | 滑点         |
+| Drawdown            | 回撤         |
+| Expectancy          | 期望值       |
+| Profit factor       | 盈亏因子     |
+| Playbook            | 策略模板     |
+| Adherence           | 执行一致性   |
+| Missed trade        | 错过的交易   |
+| Prop firm           | 交易考核机构 |
+| Market data         | 市场数据     |
+| Contract multiplier | 合约乘数     |
+| MAE                 | 最大不利波动 |
+| MFE                 | 最大有利波动 |
 
 如果某个术语存在歧义，应在字典中使用一致翻译，并在 Tooltip 或说明文案中补充解释。
 

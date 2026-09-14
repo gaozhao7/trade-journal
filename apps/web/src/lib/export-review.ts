@@ -1,4 +1,5 @@
 import { readVizTokens } from "@/components/charts/tokens";
+import { PRINT_THEME } from "./export-theme";
 
 export interface ReviewDocument {
   title: string;
@@ -51,7 +52,8 @@ export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer
     page = pdf.addPage([595, 842]);
     y = 786;
   };
-  const draw = (text: string, size: number, color = rgb(0.16, 0.19, 0.24)) => {
+  const ink = (color: { r: number; g: number; b: number }) => rgb(color.r, color.g, color.b);
+  const draw = (text: string, size: number, color = ink(PRINT_THEME.foreground)) => {
     const max = 499;
     let line = "";
     // Character wrapping also handles URLs and long unbroken symbols.
@@ -69,7 +71,7 @@ export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer
     y -= size * 1.55;
   };
   draw(doc.title, 22);
-  if (doc.subtitle) draw(doc.subtitle, 10, rgb(0.4, 0.44, 0.5));
+  if (doc.subtitle) draw(doc.subtitle, 10, ink(PRINT_THEME.muted));
   y -= 14;
   for (const line of doc.lines.flatMap((s) => s.split("\n"))) {
     const heading = /^#{1,6}\s/.test(line);
@@ -88,7 +90,7 @@ export async function buildReviewPdf(doc: ReviewDocument, fontBytes: ArrayBuffer
       y: 30,
       size: 8,
       font,
-      color: rgb(0.5, 0.5, 0.5),
+      color: ink(PRINT_THEME.rule),
     }),
   );
   return new Uint8Array(await pdf.save());

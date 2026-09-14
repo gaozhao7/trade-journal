@@ -7,7 +7,7 @@ import { Shell } from "@/components/shell";
 import { PrivacyProvider } from "@/components/privacy";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { DEFAULT_THEME_ID, THEME_INIT_SCRIPT, themeHtmlAttributes } from "@/lib/theme";
 import { resolveLocale } from "@/i18n/request";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,8 +19,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = await resolveLocale();
   const messages = (await import(`@/i18n/messages/${locale}.json`)).default;
 
+  // The server cannot read localStorage, so it renders the product default; the
+  // inline script below replaces it before the first paint.
+  const themeAttributes = themeHtmlAttributes(DEFAULT_THEME_ID);
+
   return (
-    <html lang={locale} className="dark" suppressHydrationWarning>
+    <html lang={locale} {...themeAttributes} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

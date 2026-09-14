@@ -13,10 +13,13 @@ import {
 import { providerInfo } from "@/lib/market-providers";
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { replayFrame } from "@/lib/trade-replay";
+import { currentThemeId, THEME_CHANGE_EVENT } from "@/lib/theme";
+import { getTheme } from "@/lib/theme-registry";
 import { useApi } from "@/lib/use-api";
 import { useFormat } from "@/lib/use-format";
 import { useErrorText } from "@/lib/i18n-error";
 import { TradeChart, type ChartExecution, type ChartTrade } from "./trade-chart";
+import { readVizTokens } from "./charts/tokens";
 import { usePrivacy } from "./privacy";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -545,6 +548,9 @@ function ReplayChart({
         defaultInputs: () => ({}),
         create: () => ({
           start(ctx) {
+            // Resolved on every mount of the indicator so a theme change repaints
+            // the fill labels without reloading market data.
+            const tokens = readVizTokens();
             ctx.emit({
               labels: frame.current.fills.map((fill, index) => ({
                 id: `fill-${index}`,
@@ -555,8 +561,9 @@ function ReplayChart({
                 yloc: "price" as const,
                 text: `${fill.side === "buy" ? t("side.buy") : t("side.sell")} ${fill.quantity}`,
                 style: "label_left" as const,
-                color: fill.side === "buy" ? "#087f23" : "#bd2626",
-                textColor: "#ffffff",
+                color: fill.side === "buy" ? tokens.velaBuy : tokens.velaSell,
+                textColor:
+                  fill.side === "buy" ? tokens.velaProfitLabelText : tokens.velaLossLabelText,
                 size: "small" as const,
                 textAlign: "center" as const,
                 fontFamily: "default" as const,
@@ -573,7 +580,6 @@ function ReplayChart({
           stop() {},
         }),
       });
-      const dark = () => document.documentElement.classList.contains("dark");
       const instance = new Vela(host.current, {
         symbol: history.symbol,
         timeframe: { "1m": "1", "5m": "5", "15m": "15", "1h": "60", "1d": "1D" }[
@@ -582,14 +588,15 @@ function ReplayChart({
         data: latest.current.bars,
         live: false,
         height: 420,
-        theme: dark() ? "dark" : "light",
+        // Vela only understands two bases, so the registry's colorScheme is mapped onto it.
+        theme: getTheme(currentThemeId()).colorScheme,
         priceStyle: "candles",
         volume: true,
         drawings: false,
       });
       chart.current = instance;
       frame.current = latest.current;
-      instance.addNativeIndicator(type);
+      let indicator = instance.addNativeIndicator(type);
       let updating = false;
       // Coalesce rapid scrubbing/ticks instead of queuing expensive Vela reloads.
       const flush = async () => {
@@ -609,11 +616,19 @@ function ReplayChart({
       update.current = () => {
         void flush();
       };
-      const observer = new MutationObserver(() => instance.setTheme(dark() ? "dark" : "light"));
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      const syncTheme = () => {
+        // See trade-chart.tsx: unreachable today, kept so a future await cannot
+        // leave a listener pointing at a destroyed Vela instance.
+        if (disposed) return;
+        instance.setTheme(getTheme(currentThemeId()).colorScheme);
+        // Token-coloured fill labels are rebuilt; market data is left untouched.
+        indicator.remove();
+        indicator = instance.addNativeIndicator(type);
+      };
+      window.addEventListener(THEME_CHANGE_EVENT, syncTheme);
       cleanup = () => {
         update.current = null;
-        observer.disconnect();
+        window.removeEventListener(THEME_CHANGE_EVENT, syncTheme);
         instance.destroy();
         unregisterNativeIndicator(type);
         if (chart.current === instance) chart.current = null;

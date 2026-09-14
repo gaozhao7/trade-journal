@@ -17,7 +17,7 @@ function DialogContent({
   const t = useTranslations("Common");
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="journal-popup fixed inset-0 z-50 bg-black/60" />
+      <DialogPrimitive.Overlay className="journal-popup fixed inset-0 z-50 bg-[var(--overlay-backdrop)]" />
       <DialogPrimitive.Content
         className={cn(
           "journal-dialog journal-popup fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-24px)] min-w-0 max-w-lg max-h-[calc(100dvh-24px)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-card p-4 shadow-lg sm:p-6",
